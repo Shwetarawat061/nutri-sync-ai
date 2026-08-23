@@ -27,6 +27,10 @@ function saveOrUpdateUser(body: any, res: Response) {
     fats_target,
     budget,
     hostel_context,
+    email_daily_digest,
+    email_weekly_recap,
+    email_deficit_alerts,
+    email_hostel_hacks,
   } = body;
 
   if (!email || !name) {
@@ -37,6 +41,25 @@ function saveOrUpdateUser(body: any, res: Response) {
   const normalizedNewEmail = email.trim().toLowerCase();
   const dietPref = dietaryPreference || dietary_pref || "Omnivore";
   const userGoal = goal || "Healthy eating";
+  const userAge = Number(age) || 21;
+  const userWeight = Number(weight) || 68;
+  const userHeight = Number(height) || 172;
+  const userBmi = Number(bmi) || Number((userWeight / Math.pow(userHeight / 100, 2)).toFixed(1));
+  const userBmr = bmr !== undefined && bmr !== null ? Number(bmr) : null;
+  const userTdee = tdee !== undefined && tdee !== null ? Number(tdee) : null;
+  const userCalTarget = Number(calorie_target) || 2100;
+  const userProteinTarget = Number(protein_target) || 120;
+  const userCarbsTarget = Number(carbs_target) || 200;
+  const userFatsTarget = Number(fats_target) || 60;
+  const userBudget = budget || "medium";
+  const userHostelContext = hostel_context || "";
+  const userGender = gender || "male";
+  const userActivity = activity_level || "moderate";
+
+  const dailyDig = email_daily_digest !== undefined ? (email_daily_digest ? 1 : 0) : 1;
+  const weeklyRec = email_weekly_recap !== undefined ? (email_weekly_recap ? 1 : 0) : 1;
+  const deficitAlt = email_deficit_alerts !== undefined ? (email_deficit_alerts ? 1 : 0) : 1;
+  const hostelHacks = email_hostel_hacks !== undefined ? (email_hostel_hacks ? 1 : 0) : 1;
 
   // Check if we are updating an existing user whose email changed
   if (effectiveOldEmail && effectiveOldEmail !== normalizedNewEmail) {
@@ -60,32 +83,38 @@ function saveOrUpdateUser(body: any, res: Response) {
       const updateStmt = db.prepare(`
         UPDATE users 
         SET email = ?, name = ?, age = ?, weight = ?, height = ?, gender = ?, bmi = ?,
-            bmr = COALESCE(?, bmr), tdee = COALESCE(?, tdee), goal = COALESCE(?, goal),
-            dietary_pref = COALESCE(?, dietary_pref), activity_level = COALESCE(?, activity_level),
-            calorie_target = COALESCE(?, calorie_target), protein_target = COALESCE(?, protein_target),
-            carbs_target = COALESCE(?, carbs_target), fats_target = COALESCE(?, fats_target),
-            budget = COALESCE(?, budget), hostel_context = COALESCE(?, hostel_context)
+            bmr = COALESCE(?, bmr), tdee = COALESCE(?, tdee), goal = ?,
+            dietary_pref = ?, activity_level = ?,
+            calorie_target = ?, protein_target = ?,
+            carbs_target = ?, fats_target = ?,
+            budget = ?, hostel_context = ?,
+            email_daily_digest = ?, email_weekly_recap = ?, email_deficit_alerts = ?, email_hostel_hacks = ?,
+            email_verified = 1
         WHERE LOWER(email) = ?
       `);
       updateStmt.run(
         normalizedNewEmail,
         name,
-        age,
-        weight,
-        height,
-        gender,
-        bmi,
-        bmr || null,
-        tdee || null,
+        userAge,
+        userWeight,
+        userHeight,
+        userGender,
+        userBmi,
+        userBmr,
+        userTdee,
         userGoal,
         dietPref,
-        activity_level || null,
-        calorie_target || null,
-        protein_target || null,
-        carbs_target || null,
-        fats_target || null,
-        budget || null,
-        hostel_context || null,
+        userActivity,
+        userCalTarget,
+        userProteinTarget,
+        userCarbsTarget,
+        userFatsTarget,
+        userBudget,
+        userHostelContext,
+        dailyDig,
+        weeklyRec,
+        deficitAlt,
+        hostelHacks,
         effectiveOldEmail
       );
 
@@ -100,31 +129,37 @@ function saveOrUpdateUser(body: any, res: Response) {
     const updateStmt = db.prepare(`
       UPDATE users 
       SET name = ?, age = ?, weight = ?, height = ?, gender = ?, bmi = ?,
-          bmr = COALESCE(?, bmr), tdee = COALESCE(?, tdee), goal = COALESCE(?, goal),
-          dietary_pref = COALESCE(?, dietary_pref), activity_level = COALESCE(?, activity_level),
-          calorie_target = COALESCE(?, calorie_target), protein_target = COALESCE(?, protein_target),
-          carbs_target = COALESCE(?, carbs_target), fats_target = COALESCE(?, fats_target),
-          budget = COALESCE(?, budget), hostel_context = COALESCE(?, hostel_context)
+          bmr = COALESCE(?, bmr), tdee = COALESCE(?, tdee), goal = ?,
+          dietary_pref = ?, activity_level = ?,
+          calorie_target = ?, protein_target = ?,
+          carbs_target = ?, fats_target = ?,
+          budget = ?, hostel_context = ?,
+          email_daily_digest = ?, email_weekly_recap = ?, email_deficit_alerts = ?, email_hostel_hacks = ?,
+          email_verified = 1
       WHERE LOWER(email) = ?
     `);
     updateStmt.run(
       name,
-      age,
-      weight,
-      height,
-      gender,
-      bmi,
-      bmr || null,
-      tdee || null,
+      userAge,
+      userWeight,
+      userHeight,
+      userGender,
+      userBmi,
+      userBmr,
+      userTdee,
       userGoal,
       dietPref,
-      activity_level || null,
-      calorie_target || null,
-      protein_target || null,
-      carbs_target || null,
-      fats_target || null,
-      budget || null,
-      hostel_context || null,
+      userActivity,
+      userCalTarget,
+      userProteinTarget,
+      userCarbsTarget,
+      userFatsTarget,
+      userBudget,
+      userHostelContext,
+      dailyDig,
+      weeklyRec,
+      deficitAlt,
+      hostelHacks,
       normalizedNewEmail
     );
   } else {
@@ -132,29 +167,32 @@ function saveOrUpdateUser(body: any, res: Response) {
       INSERT INTO users (
         name, email, age, weight, height, gender, bmi, bmr, tdee, goal,
         dietary_pref, activity_level, calorie_target, protein_target, carbs_target, fats_target,
-        budget, hostel_context, email_verified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        budget, hostel_context, email_daily_digest, email_weekly_recap, email_deficit_alerts, email_hostel_hacks, email_verified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `);
     insertStmt.run(
       name,
       normalizedNewEmail,
-      age,
-      weight,
-      height,
-      gender,
-      bmi,
-      bmr || null,
-      tdee || null,
+      userAge,
+      userWeight,
+      userHeight,
+      userGender,
+      userBmi,
+      userBmr,
+      userTdee,
       userGoal,
       dietPref,
-      activity_level || "Moderate",
-      calorie_target || 2100,
-      protein_target || 120,
-      carbs_target || 200,
-      fats_target || 60,
-      budget || "medium",
-      hostel_context || "",
-      1
+      userActivity,
+      userCalTarget,
+      userProteinTarget,
+      userCarbsTarget,
+      userFatsTarget,
+      userBudget,
+      userHostelContext,
+      dailyDig,
+      weeklyRec,
+      deficitAlt,
+      hostelHacks
     );
   }
 
@@ -170,10 +208,10 @@ function saveOrUpdateUser(body: any, res: Response) {
         WHERE LOWER(user_email) = ?
       `).run(
         updatedUser.goal || userGoal,
-        updatedUser.calorie_target || 2100,
-        updatedUser.protein_target || 120,
-        updatedUser.carbs_target || 200,
-        updatedUser.fats_target || 60,
+        updatedUser.calorie_target || userCalTarget,
+        updatedUser.protein_target || userProteinTarget,
+        updatedUser.carbs_target || userCarbsTarget,
+        updatedUser.fats_target || userFatsTarget,
         normalizedNewEmail
       );
     } else {
@@ -183,10 +221,10 @@ function saveOrUpdateUser(body: any, res: Response) {
       `).run(
         normalizedNewEmail,
         updatedUser.goal || userGoal,
-        updatedUser.calorie_target || 2100,
-        updatedUser.protein_target || 120,
-        updatedUser.carbs_target || 200,
-        updatedUser.fats_target || 60
+        updatedUser.calorie_target || userCalTarget,
+        updatedUser.protein_target || userProteinTarget,
+        updatedUser.carbs_target || userCarbsTarget,
+        updatedUser.fats_target || userFatsTarget
       );
     }
   } catch (targetErr) {

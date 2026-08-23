@@ -144,11 +144,11 @@ mealRoutes.delete("/:id", (req: Request, res: Response) => {
     const deleteStmt = db.prepare("DELETE FROM meals WHERE id = ?");
     const result = deleteStmt.run(id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: "Meal not found" });
-    }
-
-    return res.status(200).json({ success: true, message: "Meal deleted successfully" });
+    return res.status(200).json({
+      success: true,
+      message: "Meal deleted successfully",
+      changes: result.changes,
+    });
   } catch (error: any) {
     console.error("❌ Error in DELETE /api/meals/:id:", error);
     return res.status(500).json({ error: "Failed to delete meal", details: error.message });

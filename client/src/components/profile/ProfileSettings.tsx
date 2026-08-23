@@ -20,6 +20,7 @@ import {
   Clock,
   Copy,
   Building,
+  LogOut,
 } from "lucide-react";
 import { UserProfile, EmailDigestResponse } from "../../types";
 import { calculateMacroTargets, ACTIVITY_MULTIPLIERS } from "../../lib/nutrition";
@@ -29,11 +30,13 @@ import { ToggleSwitch } from "../common/ToggleSwitch";
 interface ProfileSettingsProps {
   userProfile: UserProfile | null;
   onProfileUpdated: (updated: UserProfile) => void;
+  onLogout?: () => void;
 }
 
 export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   userProfile,
   onProfileUpdated,
+  onLogout,
 }) => {
   const [name, setName] = useState<string>(userProfile?.name || "");
   const [email, setEmail] = useState<string>(userProfile?.email || "");
@@ -677,14 +680,28 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            <span>{saving ? "Saving..." : "Save Calibration"}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-slate-700 hover:border-rose-500/30 flex items-center gap-1.5 transition cursor-pointer"
+                title="Log out and return to starting page"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Log Out</span>
+              </button>
+            )}
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saving ? "Saving..." : "Save Calibration"}</span>
+            </button>
+          </div>
         </div>
       </form>
 

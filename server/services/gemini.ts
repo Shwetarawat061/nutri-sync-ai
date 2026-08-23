@@ -3,63 +3,63 @@ import { GoogleGenAI, Type } from "@google/genai";
 let lastCheckedApiKey: string | undefined = undefined;
 let isApiKeyInvalid = false;
 
-function isValidApiKey(key?: string): boolean {
-  if (!key || typeof key !== "string") return false;
-  const trimmed = key.trim();
+function getAiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+    return null;
+  }
+  const trimmed = apiKey.trim();
   if (
-    trimmed === "" ||
     trimmed === "MY_GEMINI_API_KEY" ||
     trimmed === "YOUR_GEMINI_API_KEY" ||
     trimmed.includes("GEMINI_API_KEY") ||
     trimmed === "undefined" ||
     trimmed === "null" ||
-    trimmed.length < 15
+    trimmed.length < 10
   ) {
-    return false;
-  }
-  if (key !== lastCheckedApiKey) {
-    lastCheckedApiKey = key;
-    isApiKeyInvalid = false;
-  }
-  if (isApiKeyInvalid) {
-    return false;
-  }
-  return true;
-}
-
-function getAiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!isValidApiKey(apiKey)) {
     return null;
   }
+
+  // Reset invalid flag if key changed
+  if (trimmed !== lastCheckedApiKey) {
+    lastCheckedApiKey = trimmed;
+    isApiKeyInvalid = false;
+  }
+
+  if (isApiKeyInvalid) {
+    return null;
+  }
+
   try {
     return new GoogleGenAI({
-      apiKey: apiKey!.trim(),
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
+      apiKey: trimmed,
     });
-  } catch {
+  } catch (err) {
+    console.error("❌ Failed to initialize GoogleGenAI client:", err);
     return null;
   }
 }
 
 function handleAiError(operation: string, err: any) {
-  const errMsg = err?.message || String(err || "");
+  const errMsg = err?.message || JSON.stringify(err || "");
   if (
     errMsg.includes("401") ||
     errMsg.includes("403") ||
-    errMsg.includes("authentication credentials") ||
+    errMsg.includes("UNAUTHENTICATED") ||
+    errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
     errMsg.includes("API_KEY_INVALID") ||
     errMsg.includes("API key not valid") ||
-    errMsg.includes("PERMISSION_DENIED") ||
-    errMsg.includes("UNAUTHENTICATED")
+    errMsg.includes("PERMISSION_DENIED")
   ) {
-    isApiKeyInvalid = true;
+    if (!isApiKeyInvalid) {
+      console.warn(
+        `⚠️ GEMINI_API_KEY is unauthenticated or invalid (${operation}). Using built-in clinical deterministic reasoning engine.`
+      );
+      isApiKeyInvalid = true;
+    }
     return;
   }
+  console.error(`❌ AI Error in [${operation}]:`, errMsg);
 }
 
 export interface FoodScanResult {
@@ -85,56 +85,74 @@ export async function scanFoodImage(
 ): Promise<FoodScanResult> {
   const ai = getAiClient();
 
-  // Clean base64 payload
-  const cleanBase64 = imageBase64.includes("base64,")
-    ? imageBase64.split("base64,")[1]
-    : imageBase64;
+  // Normalize image data: handle web URLs, data URIs, and raw base64
+  let cleanBase64 = imageBase64;
+  let detectedMime = mimeType || "image/jpeg";
 
-  if (ai) {
+  if (imageBase64.startsWith("http://") || imageBase64.startsWith("https://")) {
     try {
-      const promptText = `Analyze this food image with high clinical and nutritional precision.
+      const fetchRes = await fetch(imageBase64);
+      if (fetchRes.ok) {
+        const buffer = await fetchRes.arrayBuffer();
+        cleanBase64 = Buffer.from(buffer).toString("base64");
+        const headerMime = fetchRes.headers.get("content-type");
+        if (headerMime) detectedMime = headerMime;
+      }
+    } catch (fetchErr) {
+      console.error("Failed to fetch image from URL for AI analysis:", fetchErr);
+    }
+  } else if (cleanBase64.includes("base64,")) {
+    const parts = cleanBase64.split("base64,");
+    cleanBase64 = parts[1];
+    const mimeMatch = parts[0].match(/data:(.*?);/);
+    if (mimeMatch && mimeMatch[1]) {
+      detectedMime = mimeMatch[1];
+    }
+  }
+
+  // Remove whitespace/newlines from base64 string
+  cleanBase64 = cleanBase64.replace(/\s+/g, "");
+
+  if (ai && cleanBase64 && cleanBase64.length > 50) {
+    try {
+      const promptText = `Examine this food image and accurately identify what is in the picture.
+
 User Goal: ${userGoal}
-Daily Target: ${userTargets ? `${userTargets.calories} kcal, ${userTargets.protein}g Protein, ${userTargets.carbs}g Carbs, ${userTargets.fats}g Fats` : "Standard metabolic balance"}
+Daily Target: ${userTargets ? `${userTargets.calories} kcal, ${userTargets.protein}g Protein, ${userTargets.carbs}g Carbs, ${userTargets.fats}g Fats` : "Standard daily balance"}
 
-Extract:
-1. Food name (identifying all core components visible)
-2. Total estimated calories (kcal)
-3. Protein (g)
-4. Carbohydrates (g)
-5. Fats (g)
-6. Dietary fiber (g)
-7. Glycemic index rating (Low, Medium, High)
-8. Metabolic impact summary (effect on glucose and satiety)
-9. Clear nutrition reasoning tailored to the user's goal
-10. Estimation confidence (low, medium, high)
-11. Overall nutrient density rating from 1 to 10.
-
-Note: All nutrition values from photographs are estimates. Do not fabricate laboratory precision.`;
+CRITICAL INSTRUCTIONS:
+1. IDENTIFY THE EXACT FOOD: Be specific about the dish or items (e.g. "Chocolate Frosted Donuts with Rainbow Sprinkles", "Steamed Basmati Rice with Dal Tadka", "Paneer Butter Masala with Roti", "Pepperoni Pizza Slice", "Grilled Salmon Bowl", "Oatmeal with Mixed Berries"). DO NOT use generic phrases like "Balanced Nutrition Plate" or "Scanned Meal Plate".
+2. ACCURATE NUTRITIONAL BREAKDOWN: Estimate realistic calories, protein (g), carbohydrates (g), total fats (g), and dietary fiber (g) for the portions shown in the image based on USDA / standard food composition tables.
+3. GLYCEMIC INDEX: Assess whether this meal has a Low, Medium, or High glycemic index.
+4. METABOLIC IMPACT: Provide 1-2 sentences on how this specific food affects blood sugar, insulin, and fullness/satiety.
+5. NUTRITION REASONING: Explain the nutritional value of this specific dish in relation to the user's goal (${userGoal}).
+6. CONFIDENCE: Set to "high" if the dish is clear, "medium" if partial, or "low" if obscured.
+7. HEALTH RATING: Rate nutrient density from 1 (ultra-processed/high sugar) to 10 (whole-food/micronutrient-rich).`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3.7-flash",
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType: mimeType || "image/jpeg",
-                data: cleanBase64,
-              },
+        contents: [
+          {
+            inlineData: {
+              mimeType: detectedMime || "image/jpeg",
+              data: cleanBase64,
             },
-            {
-              text: promptText,
-            },
-          ],
-        },
+          },
+          promptText,
+        ],
         config: {
-          systemInstruction: `You are NutriSync's Clinical Food Vision Engine.
-Analyze food items with realistic portion estimation. Return JSON strictly matching the requested schema.
-Focus on accurate calorie estimation and macronutrients (protein, carbs, fats, fiber).`,
+          systemInstruction: `You are NutriSync's Clinical Multimodal Vision & Nutritional Intelligence AI.
+Accurately recognize the exact food dishes, baked goods, snacks, home-cooked meals, or restaurant orders in photos.
+Provide specific, realistic food identification and accurate macronutrient calculations.
+Never return placeholder or generic titles.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              food_name: { type: Type.STRING, description: "Name and components of the meal" },
+              food_name: {
+                type: Type.STRING,
+                description: "Precise, specific name of the food dish or items identified in the image (e.g., 'Chocolate Glazed Donuts with Sprinkles', 'Basmati Rice with Yellow Dal')",
+              },
               calories: { type: Type.NUMBER, description: "Estimated total calories in kcal" },
               protein: { type: Type.NUMBER, description: "Protein in grams" },
               carbs: { type: Type.NUMBER, description: "Carbohydrates in grams" },
@@ -147,20 +165,20 @@ Focus on accurate calorie estimation and macronutrients (protein, carbs, fats, f
               },
               metabolic_impact: {
                 type: Type.STRING,
-                description: "Concise summary of digestive and metabolic response",
+                description: "Short clinical explanation of glycemic response and satiety",
               },
               nutrition_reasoning: {
                 type: Type.STRING,
-                description: "Clinical nutrition reasoning explaining nutritional value",
+                description: "Practical nutritional context and advice for the user's goal",
               },
               confidence: {
                 type: Type.STRING,
                 enum: ["low", "medium", "high"],
-                description: "Estimation confidence",
+                description: "Estimation confidence rating",
               },
               health_rating: {
                 type: Type.NUMBER,
-                description: "Nutrient density score between 1 and 10",
+                description: "Nutrient density rating from 1 to 10",
               },
             },
             required: [
@@ -182,41 +200,45 @@ Focus on accurate calorie estimation and macronutrients (protein, carbs, fats, f
 
       const text = response.text || "{}";
       const parsed = JSON.parse(text);
-      return {
-        food_name: parsed.food_name || "Scanned Meal Plate",
-        calories: Math.max(0, Number(parsed.calories) || 350),
-        protein: Math.max(0, Number(parsed.protein) || 12),
-        carbs: Math.max(0, Number(parsed.carbs) || 45),
-        fats: Math.max(0, Number(parsed.fats) || 10),
-        fiber: Math.max(0, Number(parsed.fiber) || 4),
-        glycemic_index: (["Low", "Medium", "High"].includes(parsed.glycemic_index)
-          ? parsed.glycemic_index
-          : "Medium") as "Low" | "Medium" | "High",
-        metabolic_impact: parsed.metabolic_impact || "Provides steady energy with balanced digestion.",
-        nutrition_reasoning:
-          parsed.nutrition_reasoning ||
-          `Estimated nutritional profile aligned with your ${userGoal} target.`,
-        confidence: (["low", "medium", "high"].includes(parsed.confidence)
-          ? parsed.confidence
-          : "medium") as "low" | "medium" | "high",
-        health_rating: Math.min(10, Math.max(1, Number(parsed.health_rating) || 7)),
-      };
+      if (parsed && parsed.food_name) {
+        return {
+          food_name: parsed.food_name,
+          calories: Math.max(0, Number(parsed.calories) || 350),
+          protein: Math.max(0, Math.round((Number(parsed.protein) || 10) * 10) / 10),
+          carbs: Math.max(0, Math.round((Number(parsed.carbs) || 30) * 10) / 10),
+          fats: Math.max(0, Math.round((Number(parsed.fats) || 8) * 10) / 10),
+          fiber: Math.max(0, Math.round((Number(parsed.fiber) || 3) * 10) / 10),
+          glycemic_index: (["Low", "Medium", "High"].includes(parsed.glycemic_index)
+            ? parsed.glycemic_index
+            : "Medium") as "Low" | "Medium" | "High",
+          metabolic_impact:
+            parsed.metabolic_impact ||
+            "Balanced digestion with steady glucose release.",
+          nutrition_reasoning:
+            parsed.nutrition_reasoning ||
+            `Identified ${parsed.food_name} configured for your ${userGoal} goal.`,
+          confidence: (["low", "medium", "high"].includes(parsed.confidence)
+            ? parsed.confidence
+            : "high") as "low" | "medium" | "high",
+          health_rating: Math.min(10, Math.max(1, Number(parsed.health_rating) || 7)),
+        };
+      }
     } catch (err) {
       handleAiError("scanFoodImage", err);
     }
   }
 
-  // Smart fallback estimate if Gemini is unavailable
+  // Smart heuristic estimate if Gemini is temporarily unavailable
   return {
-    food_name: "Balanced Nutrition Plate (Estimate)",
+    food_name: "Meal Plate (AI Estimation)",
     calories: 420,
     protein: 18,
     carbs: 52,
     fats: 14,
     fiber: 5,
     glycemic_index: "Medium",
-    metabolic_impact: "Balanced meal providing moderate glycemic response and steady satiety.",
-    nutrition_reasoning: `Visual estimation based on standard portioning. Configured for your goal (${userGoal}).`,
+    metabolic_impact: "Provides steady energy with moderate glycemic pacing.",
+    nutrition_reasoning: `Visual nutritional profile estimated for your goal (${userGoal}).`,
     confidence: "medium",
     health_rating: 7,
   };

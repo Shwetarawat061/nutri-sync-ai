@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { User, Mail, Sparkles, Scale, Ruler, Activity, ArrowRight, Target, Zap, DollarSign } from "lucide-react";
+import { User, Mail, Sparkles, Scale, Ruler, Activity, ArrowRight, ArrowLeft, Target, Zap, DollarSign } from "lucide-react";
 import { motion } from "motion/react";
 import { UserProfile } from "../types";
 import { calculateMacroTargets, ACTIVITY_MULTIPLIERS } from "../lib/nutrition";
@@ -8,9 +8,10 @@ import { api } from "../api";
 interface OnboardingProps {
   onComplete: (profile: UserProfile) => void;
   setToast?: (toast: { message: string; type: "success" | "error" } | null) => void;
+  onBack?: () => void;
 }
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, onBack }) => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -99,17 +100,29 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast }) 
 
         <div className="relative z-10 space-y-6">
           {/* Header */}
-          <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400">
-              <Zap className="w-6 h-6" />
+          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400">
+                <Zap className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  NutriSync Decision Assistant
+                </span>
+                <h2 className="text-2xl font-black text-slate-100 mt-0.5">Personal Nutrition Profile</h2>
+                <p className="text-xs text-slate-400">Don't just track what you eat. Know what to do next.</p>
+              </div>
             </div>
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                NutriSync Decision Assistant
-              </span>
-              <h2 className="text-2xl font-black text-slate-100 mt-0.5">Personal Nutrition Profile</h2>
-              <p className="text-xs text-slate-400">Don't just track what you eat. Know what to do next.</p>
-            </div>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-700"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Start</span>
+              </button>
+            )}
           </div>
 
           <form onSubmit={handleSave} className="space-y-5">

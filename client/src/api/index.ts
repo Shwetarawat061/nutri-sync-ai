@@ -28,7 +28,7 @@ export const api = {
       body: JSON.stringify(profile),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to update profile");
+    if (!res.ok) throw new Error(data.details || data.error || "Failed to update profile");
     return data.user;
   },
 

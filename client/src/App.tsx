@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 import { UserProfile, MealItem, DailyTotals } from "./types";
 import { api } from "./api";
+import { StartingScreen } from "./components/welcome/StartingScreen";
 import { Onboarding } from "./components/Onboarding";
 import { NutritionDashboard } from "./components/dashboard/NutritionDashboard";
 import { FoodScanner } from "./components/food-scan/FoodScanner";
@@ -27,9 +28,20 @@ import { DietPlanGenerator } from "./components/diet-plan/DietPlanGenerator";
 import { ProfileSettings } from "./components/profile/ProfileSettings";
 import { StrategySlide } from "./components/strategy/StrategySlide";
 
+const getTodayDateString = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "tracker" | "diet" | "profile" | "strategy">("dashboard");
+  const [onboardingView, setOnboardingView] = useState<"welcome" | "form">("welcome");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "tracker" | "diet" | "profile" | "strategy" | "start">(() => {
+    // Check if opened for the first time today
+    const todayKey = getTodayDateString();
+    const lastOpened = localStorage.getItem("nutrisync_last_opened_date");
+    return lastOpened === todayKey ? "dashboard" : "start";
+  });
   const [meals, setMeals] = useState<MealItem[]>([]);
   const [budgetHostelMode, setBudgetHostelMode] = useState<boolean>(() => {
     return localStorage.getItem("nutrisync_hostel_mode") === "true";
@@ -138,6 +150,44 @@ export default function App() {
     triggerToast("Profile & email updated successfully!", "success");
   };
 
+  const handleLoadDemo = async () => {
+    const sampleProfile: UserProfile = {
+      name: "Alex Rivera",
+      email: "alex.rivera@college.edu",
+      age: 21,
+      gender: "male",
+      weight: 68,
+      height: 172,
+      bmi: 23.0,
+      bmr: 1680,
+      tdee: 2350,
+      goal: "Healthy eating",
+      dietary_pref: "Vegetarian",
+      activity_level: "moderate",
+      calorie_target: 2150,
+      protein_target: 120,
+      carbs_target: 250,
+      fats_target: 65,
+      budget: "medium",
+      hostel_context: "Hostel mess & canteen food",
+    };
+
+    try {
+      const saved = await api.onboardUser(sampleProfile);
+      localStorage.setItem("user_email", saved.email);
+      localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
+      setUserProfile(saved);
+      setActiveTab("dashboard");
+      triggerToast("Sample College Mess Profile loaded!", "success");
+    } catch (e) {
+      setUserProfile(sampleProfile);
+      localStorage.setItem("user_email", sampleProfile.email);
+      localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
+      setActiveTab("dashboard");
+      triggerToast("Sample Profile activated!", "success");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 space-y-4">
@@ -153,16 +203,42 @@ export default function App() {
   }
 
   if (!userProfile) {
+    if (onboardingView === "welcome") {
+      return (
+        <StartingScreen
+          onGetStarted={() => setOnboardingView("form")}
+          onExploreDemo={handleLoadDemo}
+          isExistingUser={false}
+        />
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col justify-center">
         <Onboarding
           onComplete={(profile) => {
+            localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
             setUserProfile(profile);
+            setActiveTab("dashboard");
             triggerToast("Profile created successfully!");
           }}
+          onBack={() => setOnboardingView("welcome")}
           setToast={setToast}
         />
       </div>
+    );
+  }
+
+  if (activeTab === "start") {
+    return (
+      <StartingScreen
+        onGetStarted={() => {
+          localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
+          setActiveTab("dashboard");
+        }}
+        onExploreDemo={handleLoadDemo}
+        isExistingUser={true}
+      />
     );
   }
 
@@ -258,6 +334,17 @@ export default function App() {
               }`}
             >
               Diet Plan
+            </button>
+            <button
+              onClick={() => setActiveTab("start")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                activeTab === "start"
+                  ? "bg-emerald-500 text-slate-950 shadow-sm"
+                  : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-white"
+              }`}
+              title="View Welcome & Starting Screen"
+            >
+              <span>Intro</span>
             </button>
             <button
               onClick={() => setActiveTab("strategy")}
@@ -369,6 +456,7 @@ export default function App() {
                 onNavigateToTracker={() => setActiveTab("tracker")}
                 onNavigateToDietPlan={() => setActiveTab("diet")}
                 onNavigateToProfile={() => setActiveTab("profile")}
+                onMealDeleted={handleMealDeleted}
               />
             </motion.div>
           )}
@@ -438,6 +526,24 @@ export default function App() {
                 userProfile={userProfile}
                 onProfileUpdated={handleProfileUpdated}
               />
+            </motion.div>
+          )}
+
+          {activeTab === "start" && (
+            <motion.div
+              key="start"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.12 }}
+              className="flex justify-center"
+            >
+              <div className="w-full max-w-md">
+                <StartingScreen
+                  onGetStarted={() => setActiveTab("dashboard")}
+                  isExistingUser={true}
+                />
+              </div>
             </motion.div>
           )}
 
