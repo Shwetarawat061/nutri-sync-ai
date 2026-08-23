@@ -1,0 +1,10 @@
+{
+  "name": "Remix: NutriSync",
+  "description": "Personalized AI nutrition decision assistant. Don't just track what you eat. Know what to do next.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
