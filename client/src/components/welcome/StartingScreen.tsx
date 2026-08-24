@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowRight,
   Heart,
@@ -26,6 +26,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const [heartAnim, setHeartAnim] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   const slides = [
     {
@@ -54,6 +55,15 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
       tagline: "EVIDENCE-BASED NUTRITION",
     },
   ];
+
+  // Auto-advance carousel slide every 3.5 seconds
+  useEffect(() => {
+    if (isPaused) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [isPaused, slides.length]);
 
   const handleHeartClick = () => {
     setIsFavorited((prev) => !prev);
@@ -215,7 +225,13 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
         </div>
 
         {/* Bottom Section: Pagination, Display Headlines, Subtitle, and Action Buttons */}
-        <div className="relative z-10 px-7 sm:px-8 pt-6 pb-8 flex-1 flex flex-col justify-between">
+        <div
+          className="relative z-10 px-7 sm:px-8 pt-6 pb-8 flex-1 flex flex-col justify-between"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={() => setIsPaused(true)}
+          onTouchEnd={() => setIsPaused(false)}
+        >
           {/* Pagination Indicators (1 Dark Pill + 4 Grey Dots matching image) */}
           <div className="flex items-center gap-1.5 mb-5">
             {slides.map((_, idx) => (

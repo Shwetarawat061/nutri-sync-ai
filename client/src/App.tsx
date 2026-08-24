@@ -150,6 +150,16 @@ export default function App() {
     triggerToast("Profile & email updated successfully!", "success");
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("user_email");
+    localStorage.removeItem("nutrisync_last_opened_date");
+    setUserProfile(null);
+    setMeals([]);
+    setOnboardingView("welcome");
+    setActiveTab("start");
+    triggerToast("Logged out successfully. Returning to starting page...", "success");
+  };
+
   const handleLoadDemo = async () => {
     const sampleProfile: UserProfile = {
       name: "Alex Rivera",
@@ -525,6 +535,7 @@ export default function App() {
               <ProfileSettings
                 userProfile={userProfile}
                 onProfileUpdated={handleProfileUpdated}
+                onLogout={handleLogout}
               />
             </motion.div>
           )}
