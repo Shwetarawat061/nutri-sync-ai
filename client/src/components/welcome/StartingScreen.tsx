@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowRight,
   Heart,
@@ -55,6 +55,15 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
       tagline: "EVIDENCE-BASED NUTRITION",
     },
   ];
+
+  useEffect(() => {
+    if (isPaused) return;
+    const slideTimer = window.setInterval(() => {
+      setCurrentSlide((slide) => (slide + 1) % slides.length);
+    }, 3500);
+
+    return () => window.clearInterval(slideTimer);
+  }, [isPaused, slides.length]);
 
   const handleHeartClick = () => {
     setIsFavorited((prev) => !prev);
