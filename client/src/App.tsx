@@ -36,12 +36,7 @@ const getTodayDateString = () => {
 export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [onboardingView, setOnboardingView] = useState<"welcome" | "form">("welcome");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "tracker" | "diet" | "profile" | "strategy" | "start">(() => {
-    // Check if opened for the first time today
-    const todayKey = getTodayDateString();
-    const lastOpened = localStorage.getItem("nutrisync_last_opened_date");
-    return lastOpened === todayKey ? "dashboard" : "start";
-  });
+  const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "tracker" | "diet" | "profile" | "strategy">("dashboard");
   const [meals, setMeals] = useState<MealItem[]>([]);
   const [budgetHostelMode, setBudgetHostelMode] = useState<boolean>(() => {
     return localStorage.getItem("nutrisync_hostel_mode") === "true";
@@ -239,19 +234,6 @@ export default function App() {
     );
   }
 
-  if (activeTab === "start") {
-    return (
-      <StartingScreen
-        onGetStarted={() => {
-          localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
-          setActiveTab("dashboard");
-        }}
-        onExploreDemo={handleLoadDemo}
-        isExistingUser={true}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col selection:bg-emerald-500/20 transition-colors duration-300">
       {/* Toast Notification */}
@@ -280,7 +262,7 @@ export default function App() {
       {/* Modern Gen Z Top Navigation Header */}
       <header className="sticky top-0 z-40 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/80 transition-colors">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* User Brand Greeting (Matching Screen 1) */}
+          {/* Neutral app identity; the dashboard owns the user greeting. */}
           <div
             onClick={() => setActiveTab("dashboard")}
             className="flex items-center gap-3 cursor-pointer group select-none"
@@ -291,14 +273,9 @@ export default function App() {
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-sm text-slate-900 dark:text-white tracking-tight">
-                  Hi, {userProfile?.name?.split(" ")[0] || "User"}
-                </span>
-                <span className="text-xs">👋</span>
-              </div>
+              <span className="font-extrabold text-sm text-slate-900 dark:text-white tracking-tight">NutriSync</span>
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Let's hit today's targets
+                Metabolic intelligence
               </p>
             </div>
           </div>
@@ -344,17 +321,6 @@ export default function App() {
               }`}
             >
               Diet Plan
-            </button>
-            <button
-              onClick={() => setActiveTab("start")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                activeTab === "start"
-                  ? "bg-emerald-500 text-slate-950 shadow-sm"
-                  : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-white"
-              }`}
-              title="View Welcome & Starting Screen"
-            >
-              <span>Intro</span>
             </button>
             <button
               onClick={() => setActiveTab("strategy")}
@@ -537,24 +503,6 @@ export default function App() {
                 onProfileUpdated={handleProfileUpdated}
                 onLogout={handleLogout}
               />
-            </motion.div>
-          )}
-
-          {activeTab === "start" && (
-            <motion.div
-              key="start"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.12 }}
-              className="flex justify-center"
-            >
-              <div className="w-full max-w-md">
-                <StartingScreen
-                  onGetStarted={() => setActiveTab("dashboard")}
-                  isExistingUser={true}
-                />
-              </div>
             </motion.div>
           )}
 

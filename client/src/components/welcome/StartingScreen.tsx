@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   ArrowRight,
   Heart,
@@ -56,15 +56,6 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
     },
   ];
 
-  // Auto-advance carousel slide every 3.5 seconds
-  useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [isPaused, slides.length]);
-
   const handleHeartClick = () => {
     setIsFavorited((prev) => !prev);
     setHeartAnim(true);
@@ -72,9 +63,9 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-0 sm:p-4 md:p-6 select-none">
-      {/* Mobile Device Container Frame */}
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 sm:rounded-[40px] shadow-2xl overflow-hidden relative border border-slate-200/80 dark:border-slate-800 flex flex-col min-h-screen sm:min-h-[844px] justify-between">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8 select-none">
+      {/* Responsive welcome surface: phone-like on mobile, split workspace on desktop. */}
+      <div className="w-full max-w-md lg:max-w-6xl bg-white dark:bg-slate-900 sm:rounded-[40px] lg:rounded-[36px] shadow-2xl overflow-hidden relative border border-slate-200/80 dark:border-slate-800 flex flex-col lg:grid lg:grid-cols-[1.05fr_0.95fr] min-h-screen sm:min-h-[844px] lg:min-h-0 lg:h-[min(820px,calc(100vh-4rem))]">
         {/* Soft Background Doodle Elements (Fork, Shaker, Apple) */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-40 dark:opacity-20">
           {/* Mint Fork on bottom-left */}
@@ -116,7 +107,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
             <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-300/40 dark:bg-emerald-600/20 rounded-full blur-2xl pointer-events-none" />
 
             {/* Mobile Status Bar (9:30, Signal, Wifi, Battery) */}
-            <div className="flex items-center justify-between text-slate-800 dark:text-slate-200 text-xs font-bold px-1 mb-3">
+            <div className="flex items-center justify-between text-slate-800 dark:text-slate-200 text-xs font-bold px-1 mb-3 lg:hidden">
               <span>9:30</span>
               <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                 {/* Signal */}
@@ -138,7 +129,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
             </div>
 
             {/* App Brand Header */}
-            <div className="flex items-center justify-between mt-1 mb-4">
+            <div className="flex items-center justify-between mt-1 mb-4 lg:mt-5 lg:mb-8">
               <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-1">
                 <span>NutriSync</span>
               </h1>
@@ -148,8 +139,8 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
             </div>
 
             {/* Central Healthy Bowl Image with Floating Badges */}
-            <div className="relative w-full flex items-center justify-center my-2">
-              <div className="relative w-56 h-56 sm:w-60 sm:h-60 flex items-center justify-center">
+            <div className="relative w-full flex items-center justify-center my-2 lg:my-0 lg:min-h-[calc(100%-5rem)]">
+              <div className="relative w-56 h-56 sm:w-60 sm:h-60 lg:w-[min(28vw,22rem)] lg:h-[min(28vw,22rem)] flex items-center justify-center">
                 {/* Outer Shadow Plate */}
                 <div className="absolute inset-2 rounded-full bg-slate-900/10 dark:bg-black/40 blur-xl transform translate-y-3" />
 
@@ -158,7 +149,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="relative w-48 h-48 sm:w-52 sm:h-52 rounded-full bg-white p-1 shadow-xl border-4 border-white/90 overflow-hidden ring-4 ring-emerald-500/10 flex items-center justify-center"
+                  className="relative w-48 h-48 sm:w-52 sm:h-52 lg:w-[min(25vw,20rem)] lg:h-[min(25vw,20rem)] rounded-full bg-white p-1 shadow-xl border-4 border-white/90 overflow-hidden ring-4 ring-emerald-500/10 flex items-center justify-center"
                 >
                   <img
                     src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=85"
@@ -233,7 +224,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
           onTouchEnd={() => setIsPaused(false)}
         >
           {/* Pagination Indicators (1 Dark Pill + 4 Grey Dots matching image) */}
-          <div className="flex items-center gap-1.5 mb-5">
+          <div className="flex items-center gap-1.5 mb-5 lg:mb-10">
             {slides.map((_, idx) => (
               <button
                 key={idx}
@@ -249,7 +240,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
           </div>
 
           {/* Dynamic Animated Content */}
-          <div className="min-h-[140px] flex flex-col justify-center">
+          <div className="min-h-[140px] lg:min-h-0 flex flex-col justify-center lg:flex-1">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentSlide}
@@ -259,10 +250,10 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
                 transition={{ duration: 0.25 }}
                 className="space-y-3"
               >
-                <h2 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-[1.1] whitespace-pre-line font-display">
+                <h2 className="text-3xl sm:text-4xl lg:text-6xl font-black text-slate-900 dark:text-white tracking-tight leading-[1.05] whitespace-pre-line font-display">
                   {slides[currentSlide].title}
                 </h2>
-                <p className="text-sm sm:text-[15px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-[320px]">
+                <p className="text-sm sm:text-[15px] lg:text-lg font-medium text-slate-500 dark:text-slate-400 leading-relaxed max-w-[320px] lg:max-w-md">
                   {slides[currentSlide].subtitle}
                 </p>
               </motion.div>
@@ -270,7 +261,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
           </div>
 
           {/* Action Row: [Get Today's Sync ->] + [Heart Pill Button] */}
-          <div className="pt-6 space-y-3">
+          <div className="pt-6 lg:pt-10 space-y-3">
             <div className="flex items-center gap-2.5">
               {/* Main Button: Get Today's Sync -> */}
               <button
@@ -321,7 +312,7 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
           </div>
 
           {/* Bottom Home Indicator Bar */}
-          <div className="w-32 h-1 bg-slate-900 dark:bg-slate-700 rounded-full mx-auto mt-6 opacity-40" />
+          <div className="w-32 h-1 bg-slate-900 dark:bg-slate-700 rounded-full mx-auto mt-6 opacity-40 lg:hidden" />
         </div>
       </div>
     </div>
