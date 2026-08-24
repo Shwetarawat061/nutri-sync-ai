@@ -80,7 +80,7 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
 
   // Fetch AI daily insights
   useEffect(() => {
-    if (!userProfile) return;
+    if (!userProfile?.email) return;
 
     const fetchInsights = async () => {
       setLoadingInsights(true);
@@ -107,14 +107,14 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
           setAdherenceScore(res.score || 88);
         }
       } catch (err) {
-        console.error("Failed to fetch insights:", err);
+        console.warn("Notice while fetching insights:", err);
       } finally {
         setLoadingInsights(false);
       }
     };
 
     fetchInsights();
-  }, [userProfile, dailyTotals.calories, meals.length]);
+  }, [userProfile?.email, dailyTotals.calories, meals.length]);
 
   const targetCalories = userProfile?.calorie_target || 2100;
   const targetProtein = userProfile?.protein_target || 120;

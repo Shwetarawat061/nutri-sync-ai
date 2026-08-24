@@ -63,10 +63,10 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
   };
 
   React.useEffect(() => {
-    if (userProfile && !actionData) {
+    if (userProfile?.email && !actionData) {
       fetchNextBestAction();
     }
-  }, [userProfile, dailyTotals.calories, budgetHostelMode]);
+  }, [userProfile?.email, dailyTotals.calories, budgetHostelMode]);
 
   const targetCal = userProfile?.calorie_target || 2100;
   const targetProt = userProfile?.protein_target || 120;
