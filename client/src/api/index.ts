@@ -8,58 +8,84 @@ import {
   DietPlanData,
 } from "../types";
 
+async function safeFetch<T = any>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const contentType = res.headers.get("content-type") || "";
+
+  let body: any = null;
+  if (contentType.includes("application/json")) {
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+  } else {
+    // If HTML or text is returned (e.g. proxy 503 error)
+    const text = await res.text().catch(() => "");
+    body = {
+      error: res.ok ? "Unexpected response format" : `Service temporarily unavailable (${res.status})`,
+      raw: text.slice(0, 100),
+    };
+  }
+
+  if (!res.ok) {
+    const errorMsg = body?.error || body?.details || body?.message || `Request failed with status ${res.status}`;
+    throw new Error(errorMsg);
+  }
+
+  return body;
+}
+
 export const api = {
   // User Profile Endpoints
   async onboardUser(profile: Partial<UserProfile>): Promise<UserProfile> {
-    const res = await fetch("/api/user/onboard", {
+    const data = await safeFetch<{ user: UserProfile }>("/api/user/onboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(profile),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to onboard user");
     return data.user;
   },
 
   async updateUserProfile(profile: Partial<UserProfile> & { currentEmail?: string; oldEmail?: string }): Promise<UserProfile> {
-    const res = await fetch("/api/user/profile", {
+    const data = await safeFetch<{ user: UserProfile }>("/api/user/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(profile),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.details || data.error || "Failed to update profile");
     return data.user;
   },
 
   async sendEmailVerification(email: string, newEmail?: string): Promise<{ success: boolean; previewCode: string; message: string }> {
-    const res = await fetch("/api/user/send-verification", {
+    return safeFetch<{ success: boolean; previewCode: string; message: string }>("/api/user/send-verification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, newEmail }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to send verification code");
-    return data;
   },
 
   async verifyEmail(email: string, code: string, newEmail?: string): Promise<UserProfile> {
-    const res = await fetch("/api/user/verify-email", {
+    const data = await safeFetch<{ user: UserProfile }>("/api/user/verify-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, code, newEmail }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to verify email");
     return data.user;
   },
 
   async getUserProfile(email: string): Promise<UserProfile | null> {
-    const res = await fetch(`/api/user/profile?email=${encodeURIComponent(email)}`);
-    if (res.status === 404) return null;
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to get user profile");
-    return data.user;
+    try {
+      const res = await fetch(`/api/user/profile?email=${encodeURIComponent(email)}`);
+      if (res.status === 404) return null;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        return data.user || null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   },
 
   async saveEmailPreferences(payload: {
@@ -69,25 +95,20 @@ export const api = {
     email_deficit_alerts?: boolean;
     email_hostel_hacks?: boolean;
   }): Promise<UserProfile> {
-    const res = await fetch("/api/user/email-preferences", {
+    const data = await safeFetch<{ user: UserProfile }>("/api/user/email-preferences", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to save email preferences");
     return data.user;
   },
 
   async sendEmailDigest(email: string, customSubject?: string): Promise<any> {
-    const res = await fetch("/api/user/send-digest", {
+    return safeFetch("/api/user/send-digest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, customSubject }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to dispatch email digest");
-    return data;
   },
 
   // Meal Logs Endpoints
@@ -95,51 +116,39 @@ export const api = {
     const url = date
       ? `/api/meals?email=${encodeURIComponent(email)}&date=${encodeURIComponent(date)}`
       : `/api/meals?email=${encodeURIComponent(email)}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to fetch meals");
+    const data = await safeFetch<{ meals: MealItem[] }>(url);
     return data.meals || [];
   },
 
   async getTodayMeals(email: string): Promise<{ meals: MealItem[]; totals: any; count: number }> {
-    const res = await fetch(`/api/meals/today?email=${encodeURIComponent(email)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to fetch today meals");
+    const data = await safeFetch<{ meals: MealItem[]; totals: any; count: number }>(`/api/meals/today?email=${encodeURIComponent(email)}`);
     return { meals: data.meals || [], totals: data.totals, count: data.count || 0 };
   },
 
   async getMealById(id: string): Promise<MealItem> {
-    const res = await fetch(`/api/meals/${encodeURIComponent(id)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to fetch meal");
+    const data = await safeFetch<{ meal: MealItem }>(`/api/meals/${encodeURIComponent(id)}`);
     return data.meal;
   },
 
   async logMeal(meal: Partial<MealItem>): Promise<MealItem> {
-    const res = await fetch("/api/meals", {
+    const data = await safeFetch<{ meal: MealItem }>("/api/meals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(meal),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to log meal");
     return data.meal;
   },
 
   async deleteMeal(id: string): Promise<void> {
-    const res = await fetch(`/api/meals/${encodeURIComponent(id)}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to delete meal");
+    await safeFetch(`/api/meals/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 
   async batchSyncMeals(email: string, meals: Partial<MealItem>[]): Promise<MealItem[]> {
-    const res = await fetch("/api/meals/batch-sync", {
+    const data = await safeFetch<{ meals: MealItem[] }>("/api/meals/batch-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_email: email, meals }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to sync meals");
     return data.meals || [];
   },
 
@@ -150,13 +159,11 @@ export const api = {
     userGoal?: string,
     userTargets?: { calories: number; protein: number; carbs: number; fats: number }
   ): Promise<FoodScanResponse> {
-    const res = await fetch("/api/ai/scan-food", {
+    const data = await safeFetch<{ scan?: FoodScanResponse } & FoodScanResponse>("/api/ai/scan-food", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, mimeType, userGoal, userTargets }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.details || "Food scan failed");
     return data.scan || data;
   },
 
@@ -167,13 +174,11 @@ export const api = {
     recentMeals?: any[];
     nutritionTargets?: any;
   }): Promise<NutritionInsightData> {
-    const res = await fetch("/api/ai/nutrition-insight", {
+    const data = await safeFetch<{ insight: any; next_best_action: any }>("/api/ai/nutrition-insight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.details || "Nutrition insight failed");
     return {
       insight: data.insight,
       next_best_action: data.next_best_action,
@@ -190,13 +195,11 @@ export const api = {
     hostelMenu?: string;
     dietaryPreference?: string;
   }): Promise<NextBestActionData> {
-    const res = await fetch("/api/ai/next-best-action", {
+    const data = await safeFetch<{ nextBestAction: NextBestActionData }>("/api/ai/next-best-action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.details || "Next Best Action failed");
     return data.nextBestAction;
   },
 
@@ -210,13 +213,11 @@ export const api = {
     hostelMenu?: string;
     availableFood?: string;
   }): Promise<MealRecommendationData> {
-    const res = await fetch("/api/ai/recommend-next-meal", {
+    const data = await safeFetch<{ recommendation: string; options: string[]; rationale: string }>("/api/ai/recommend-next-meal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.details || "Meal recommendation failed");
     return {
       recommendation: data.recommendation,
       options: data.options || [],
@@ -233,13 +234,11 @@ export const api = {
     hostelMenuText?: string;
     dislikedFoods?: string;
   }): Promise<DietPlanData> {
-    const res = await fetch("/api/ai/generate-diet", {
+    const data = await safeFetch<{ dietPlan: DietPlanData }>("/api/ai/generate-diet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || data.details || "Diet plan generation failed");
     return data.dietPlan;
   },
 
@@ -249,13 +248,11 @@ export const api = {
     targets: { calories: number; protein: number; carbs: number; fats: number };
     mealsCount: number;
   }): Promise<{ insights: string[]; score: number }> {
-    const res = await fetch("/api/ai/insights", {
+    const data = await safeFetch<{ insights: { insights: string[]; score: number } }>("/api/ai/insights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to generate insights");
     return data.insights;
   },
 
@@ -275,13 +272,53 @@ export const api = {
     confidence: "high" | "medium" | "low";
     reasoning: string;
   }> {
-    const res = await fetch("/api/ai/parse-email-meal", {
+    const data = await safeFetch<{ parsedMeal: any }>("/api/ai/parse-email-meal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to parse meal from email");
     return data.parsedMeal;
+  },
+
+  async parseMealText(payload: {
+    text: string;
+    userGoal?: string;
+    dietaryPreference?: string;
+    userTargets?: { calories: number; protein: number; carbs: number; fats: number };
+    budgetHostelMode?: boolean;
+  }): Promise<any> {
+    const data = await safeFetch<{ meal: any }>("/api/ai/parse-meal-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return data.meal;
+  },
+
+  async consultHealthAdvisor(payload: {
+    messages: Array<{ role: "user" | "model" | "assistant"; content: string }>;
+    userProfile?: any;
+    todayNutrition?: any;
+    recentMeals?: any[];
+    budgetHostelMode?: boolean;
+  }): Promise<{
+    reply: string;
+    suggested_questions: string[];
+    action_summary?: {
+      action: string;
+      recommended_foods?: string[];
+      calorie_adjustment?: string;
+    };
+  }> {
+    const data = await safeFetch<{ reply: string; suggested_questions: string[]; action_summary?: any }>("/api/ai/health-advisor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return {
+      reply: data.reply,
+      suggested_questions: data.suggested_questions || [],
+      action_summary: data.action_summary,
+    };
   },
 };

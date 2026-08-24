@@ -8,6 +8,8 @@ import {
   generatePersonalizedDietPlan,
   generatePersonalizedInsights,
   parseEmailMeal,
+  parseMealText,
+  consultHealthAdvisor,
 } from "../services/gemini.js";
 
 export const aiRoutes = Router();
@@ -256,4 +258,64 @@ aiRoutes.post("/parse-email-meal", async (req: Request, res: Response) => {
     });
   }
 });
+
+// 🧠 AI Natural Language / Voice Meal Parser (/api/ai/parse-meal-text)
+aiRoutes.post("/parse-meal-text", async (req: Request, res: Response) => {
+  try {
+    const { text, userGoal, dietaryPreference, userTargets, budgetHostelMode } = req.body;
+
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Meal description text is required" });
+    }
+
+    const result = await parseMealText({
+      text: text.trim(),
+      userGoal: userGoal || "Healthy eating",
+      dietaryPreference: dietaryPreference || "Omnivore",
+      userTargets,
+      budgetHostelMode: Boolean(budgetHostelMode),
+    });
+
+    return res.status(200).json({ success: true, meal: result });
+  } catch (error: any) {
+    console.error("❌ Error in /api/ai/parse-meal-text:", error);
+    return res.status(500).json({
+      error: "Meal text parsing failed",
+      details: error?.message || "Internal AI error",
+    });
+  }
+});
+
+// 🩺 AI Health & Metabolic Advisor (/api/ai/health-advisor)
+aiRoutes.post("/health-advisor", async (req: Request, res: Response) => {
+  try {
+    const { messages, userProfile, todayNutrition, recentMeals, budgetHostelMode } = req.body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Conversation messages array is required" });
+    }
+
+    const result = await consultHealthAdvisor({
+      messages,
+      userProfile,
+      todayNutrition,
+      recentMeals,
+      budgetHostelMode: Boolean(budgetHostelMode),
+    });
+
+    return res.status(200).json({
+      success: true,
+      reply: result.reply,
+      suggested_questions: result.suggested_questions,
+      action_summary: result.action_summary,
+    });
+  } catch (error: any) {
+    console.error("❌ Error in /api/ai/health-advisor:", error);
+    return res.status(500).json({
+      error: "Health advisor consultation failed",
+      details: error?.message || "Internal AI error",
+    });
+  }
+});
+
 

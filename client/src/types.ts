@@ -63,6 +63,7 @@ export interface MealItem {
 
 export interface FoodScanResponse {
   food_name: string;
+  estimated_weight_g?: number;
   calories: number;
   protein: number;
   carbs: number;
@@ -139,3 +140,44 @@ export interface DailyTotals {
   fats: number;
   fiber: number;
 }
+
+export interface ParsedMealTextResult {
+  food_name: string;
+  items_breakdown: Array<{
+    name: string;
+    portion: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+  }>;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  fiber: number;
+  glycemic_index: "Low" | "Medium" | "High";
+  meal_type: "Breakfast" | "Lunch" | "Dinner" | "Snack";
+  nutrition_reasoning: string;
+  metabolic_impact: string;
+  health_rating: number;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface HealthAdvisorMessage {
+  id?: string;
+  role: "user" | "model" | "assistant";
+  content: string;
+  timestamp?: string;
+}
+
+export interface HealthAdvisorResponse {
+  reply: string;
+  suggested_questions: string[];
+  action_summary?: {
+    action: string;
+    recommended_foods?: string[];
+    calorie_adjustment?: string;
+  };
+}
+

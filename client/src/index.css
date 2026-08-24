@@ -1,43 +1,45 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Plus Jakarta Sans", "Outfit", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 :root {
-  --bg-gradient-from: #0b1120;
-  --bg-gradient-via: #0f172a;
-  --bg-gradient-to: #030712;
-  --card-bg: rgba(15, 23, 42, 0.75);
-  --card-border: rgba(51, 65, 85, 0.5);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --pill-bg: rgba(30, 41, 59, 0.8);
-}
-
-:root.light {
-  --bg-gradient-from: #e8f1fc;
-  --bg-gradient-via: #f1f6fd;
-  --bg-gradient-to: #e8f1fc;
-  --card-bg: rgba(255, 255, 255, 0.92);
-  --card-border: rgba(226, 232, 240, 0.85);
+  --bg-gradient-from: #f0f4f8;
+  --bg-gradient-via: #f8fafc;
+  --bg-gradient-to: #f0f4f8;
+  --card-bg: rgba(255, 255, 255, 0.95);
+  --card-border: rgba(226, 232, 240, 0.9);
   --text-primary: #0f172a;
   --text-secondary: #64748b;
-  --pill-bg: rgba(241, 245, 249, 0.9);
+  --pill-bg: rgba(241, 245, 249, 0.95);
+}
+
+:root.dark {
+  --bg-gradient-from: #070b14;
+  --bg-gradient-via: #0c1424;
+  --bg-gradient-to: #030712;
+  --card-bg: rgba(15, 23, 42, 0.85);
+  --card-border: rgba(51, 65, 85, 0.6);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --pill-bg: rgba(30, 41, 59, 0.85);
 }
 
 @layer base {
   body {
-    @apply font-sans antialiased selection:bg-emerald-500/30 min-h-screen;
-    background-color: #0b1120;
-    color: #f8fafc;
+    @apply font-sans antialiased selection:bg-emerald-500/30 min-h-screen transition-colors duration-200;
+    background-color: #f1f5f9;
+    color: #0f172a;
   }
 
-  .light body {
-    background-color: #e8f1fc;
-    color: #0f172a;
+  .dark body {
+    background-color: #070b14;
+    color: #f8fafc;
   }
 }
 

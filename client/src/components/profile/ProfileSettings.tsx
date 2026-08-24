@@ -21,11 +21,24 @@ import {
   Copy,
   Building,
   LogOut,
+  Scale,
+  Ruler,
+  Utensils,
+  ShieldCheck,
+  Layers,
+  Award,
+  Wallet,
+  Compass,
+  KeyRound,
+  Trash2,
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, EmailDigestResponse } from "../../types";
 import { calculateMacroTargets, ACTIVITY_MULTIPLIERS } from "../../lib/nutrition";
 import { api } from "../../api";
 import { ToggleSwitch } from "../common/ToggleSwitch";
+
+type SettingsTab = "biometrics" | "dietary" | "notifications" | "account";
 
 interface ProfileSettingsProps {
   userProfile: UserProfile | null;
@@ -38,6 +51,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   onProfileUpdated,
   onLogout,
 }) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("biometrics");
+
+  // Form states
   const [name, setName] = useState<string>(userProfile?.name || "");
   const [email, setEmail] = useState<string>(userProfile?.email || "");
   const [age, setAge] = useState<number>(userProfile?.age || 21);
@@ -196,7 +212,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   const handleSendInstantDigest = async () => {
     const targetUserEmail = userProfile?.email || email;
     if (!targetUserEmail) {
-      setErrorMsg("Please enter and save your email address first.");
+      setErrorMsg("Please configure and save your email address in the Account tab first.");
       return;
     }
 
@@ -221,10 +237,11 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     }
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!email || !name) {
-      setErrorMsg("Name and email are required.");
+      setErrorMsg("Name and email are required. Please check the Account tab.");
+      setActiveTab("account");
       return;
     }
 
@@ -272,457 +289,874 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     }
   };
 
+  const dietaryOptions = [
+    {
+      id: "Vegetarian",
+      title: "Vegetarian",
+      badge: "Lacto-Ovo",
+      desc: "Plant foods, dairy & legumes; no meat or fish.",
+      icon: "🥗",
+    },
+    {
+      id: "Non-Vegetarian",
+      title: "Non-Vegetarian",
+      badge: "Complete Protein",
+      desc: "Chicken, fish, eggs & all plant proteins.",
+      icon: "🍗",
+    },
+    {
+      id: "Eggetarian",
+      title: "Eggetarian",
+      badge: "High Bioavailability",
+      desc: "Vegetarian diet enriched with whole eggs.",
+      icon: "🍳",
+    },
+    {
+      id: "Vegan",
+      title: "Vegan",
+      badge: "100% Plant",
+      desc: "No animal products, dairy, or honey.",
+      icon: "🌱",
+    },
+    {
+      id: "Omnivore",
+      title: "Omnivore",
+      badge: "Flexible",
+      desc: "Balanced mix of all wholesome food sources.",
+      icon: "🍽️",
+    },
+  ];
+
+  const goalOptions = [
+    {
+      id: "Healthy eating",
+      title: "Healthy Eating",
+      badge: "Vitality & Energy",
+      desc: "Optimized micronutrients & clean balance.",
+      icon: <Sparkles className="w-4 h-4 text-emerald-500" />,
+    },
+    {
+      id: "Increase protein",
+      title: "Increase Protein",
+      badge: "Muscle Synthesis",
+      desc: "High protein ratio (1.8g - 2.2g / kg).",
+      icon: <Zap className="w-4 h-4 text-blue-500" />,
+    },
+    {
+      id: "Weight management",
+      title: "Weight Management",
+      badge: "Caloric Deficit",
+      desc: "Controlled deficit with sustained satiety.",
+      icon: <Target className="w-4 h-4 text-amber-500" />,
+    },
+    {
+      id: "Fitness nutrition",
+      title: "Fitness Nutrition",
+      badge: "Athletic Fuel",
+      desc: "Performance carbs + recovery protein.",
+      icon: <Flame className="w-4 h-4 text-rose-500" />,
+    },
+  ];
+
+  const tabs = [
+    {
+      id: "biometrics" as SettingsTab,
+      label: "Biometrics",
+      subtitle: "Body & Metabolism",
+      icon: <Scale className="w-4 h-4" />,
+    },
+    {
+      id: "dietary" as SettingsTab,
+      label: "Dietary",
+      subtitle: "Goals & Environment",
+      icon: <Utensils className="w-4 h-4" />,
+    },
+    {
+      id: "notifications" as SettingsTab,
+      label: "Notifications",
+      subtitle: "AI Digests & Schedules",
+      icon: <Bell className="w-4 h-4" />,
+    },
+    {
+      id: "account" as SettingsTab,
+      label: "Account",
+      subtitle: "Identity & Sessions",
+      icon: <User className="w-4 h-4" />,
+    },
+  ];
+
   return (
     <div id="profile-settings-container" className="space-y-6 max-w-4xl mx-auto pb-16">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-emerald-950/40 border border-slate-800 backdrop-blur-md shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-white via-slate-50 to-emerald-50/60 dark:from-slate-900 dark:via-slate-900/90 dark:to-emerald-950/40 border border-slate-200 dark:border-slate-800 shadow-xl transition-colors duration-300">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Account & Sync Center
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+              NutriSync Control Hub
             </span>
-            <span className="text-xs text-slate-400">NutriSync Engine</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Settings & Calibration</span>
           </div>
-          <h2 className="text-2xl font-black text-slate-100 tracking-tight">
-            Profile & Nutrition Calibration
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+            Settings & Profile
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Configure your personal details, email address, automated AI digests, caloric ceiling, and dietary parameters.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-xl">
+            Configure your biometrics, nutritional protocols, automated AI digests, and account credentials with dedicated module tabs.
           </p>
         </div>
-      </div>
 
-      {/* ========================================================================= */}
-      {/* SECTION 1: EMAIL & AUTOMATED DIGEST HUB                                    */}
-      {/* ========================================================================= */}
-      <div
-        id="email-integration-hub"
-        className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-6"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-              <Mail className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-100">
-                  Email & Digest Center
-                </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Active
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Recipient: <span className="font-semibold text-slate-200">{email || "Not configured"}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Test / Send Digest Instant Action */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              id="send-instant-digest-btn"
-              type="button"
-              onClick={handleSendInstantDigest}
-              disabled={sendingDigest}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 transition shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
-            >
-              {sendingDigest ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Generating Digest...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Preview & Send Digest</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Tactile Email Notification Toggles */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-              Automated Notification Schedules
-            </span>
-            {prefSaveStatus && (
-              <span className="text-[11px] font-bold text-emerald-400 animate-in fade-in flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {prefSaveStatus}
-              </span>
+        {/* Global Save Button in Header */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleSaveProfile()}
+            disabled={saving}
+            className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 cursor-pointer active:scale-95"
+          >
+            {saving ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Save All Changes</span>
+              </>
             )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Toggle 1: Daily AI Evening Digest */}
-            <ToggleSwitch
-              id="toggle-daily-digest"
-              checked={emailDailyDigest}
-              onChange={(val) => handleToggleEmailPref("daily", val)}
-              label="Daily AI Evening Digest"
-              description="Daily @ 8:30 PM: Breakdown of consumed macros, metabolic velocity, and next action."
-              badge="Daily"
-              icon={<Clock className="w-4 h-4" />}
-              activeColor="emerald"
-            />
-
-            {/* Toggle 2: Weekly Metabolic Progress Recap */}
-            <ToggleSwitch
-              id="toggle-weekly-recap"
-              checked={emailWeeklyRecap}
-              onChange={(val) => handleToggleEmailPref("weekly", val)}
-              label="Weekly Metabolic Recap"
-              description="Every Sunday: 7-day caloric balance, protein adherence %, and goal velocity."
-              badge="Weekly"
-              icon={<Activity className="w-4 h-4" />}
-              activeColor="indigo"
-            />
-
-            {/* Toggle 3: High Deficit & Satiety Alerts */}
-            <ToggleSwitch
-              id="toggle-deficit-alerts"
-              checked={emailDeficitAlerts}
-              onChange={(val) => handleToggleEmailPref("alerts", val)}
-              label="High Deficit & Satiety Alerts"
-              description="Real-time alert when remaining protein deficit exceeds 35g before dinner."
-              badge="Alert"
-              icon={<Flame className="w-4 h-4" />}
-              activeColor="amber"
-            />
-
-            {/* Toggle 4: Hostel Mess & Canteen Hacks */}
-            <ToggleSwitch
-              id="toggle-hostel-hacks"
-              checked={emailHostelHacks}
-              onChange={(val) => handleToggleEmailPref("hostel", val)}
-              label="Hostel Mess Nutrition Hacks"
-              description="Weekly curated mess survival guide with affordable local high-protein swaps."
-              badge="Mess Mode"
-              icon={<Building className="w-4 h-4" />}
-              activeColor="cyan"
-            />
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* Metabolic Scorecard */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Body Mass Index
+      {/* Global Alerts */}
+      {savedSuccess && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm"
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>Settings, targets, and metabolic calibration synchronized successfully!</span>
+        </motion.div>
+      )}
+
+      {errorMsg && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 shadow-sm"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
-          <div className="text-2xl font-black text-slate-100 flex items-center gap-2">
-            <span>{bmi}</span>
-            <span
-              className={`text-xs font-bold px-2 py-0.5 rounded ${
-                bmi >= 18.5 && bmi <= 24.9
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  : bmi < 18.5
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                  : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            className="p-1 text-rose-600 dark:text-rose-400 hover:opacity-75"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* FOUR DEDICATED INTERNAL TABS NAVIGATION                                   */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-inner">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              id={`tab-btn-${tab.id}`}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex items-center gap-2.5 p-3 rounded-xl text-left transition-all duration-200 cursor-pointer ${
+                isActive
+                  ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200/80 dark:border-slate-700"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-800/40"
               }`}
             >
-              {bmi < 18.5 ? "Underweight" : bmi <= 24.9 ? "Optimal Range" : "Overweight"}
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">Normal healthy range is 18.5 – 24.9</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Basal Metabolic Rate
-          </div>
-          <div className="text-2xl font-black text-slate-100 flex items-baseline gap-1">
-            <span>{targets.bmr}</span>
-            <span className="text-xs font-semibold text-slate-400">kcal/day</span>
-          </div>
-          <p className="text-[11px] text-slate-400">Calories burned at absolute rest</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Total Daily Energy Expenditure
-          </div>
-          <div className="text-2xl font-black text-slate-100 flex items-baseline gap-1">
-            <span>{targets.tdee}</span>
-            <span className="text-xs font-semibold text-slate-400">kcal/day</span>
-          </div>
-          <p className="text-[11px] text-slate-400">Daily maintenance requirement</p>
-        </div>
-      </div>
-
-      {/* Target Macros Overview */}
-      <div className="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">
-              Calibrated Daily Target Macros
-            </h3>
-          </div>
-          <span className="text-xs text-slate-400">Calculated via Mifflin-St Jeor</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
-            <span className="text-[11px] text-slate-400">Daily Energy</span>
-            <div className="text-lg font-bold text-emerald-400 mt-1">{targets.calories} kcal</div>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
-            <span className="text-[11px] text-blue-400">Protein Target</span>
-            <div className="text-lg font-bold text-blue-400 mt-1">{targets.protein}g</div>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
-            <span className="text-[11px] text-amber-400">Carbs Target</span>
-            <div className="text-lg font-bold text-amber-400 mt-1">{targets.carbs}g</div>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-center">
-            <span className="text-[11px] text-emerald-400">Fats Target</span>
-            <div className="text-lg font-bold text-emerald-400 mt-1">{targets.fats}g</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Profile Form */}
-      <form
-        onSubmit={handleSaveProfile}
-        className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm space-y-6"
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">
-            Account & Personal Details
-          </h3>
-          <span className="text-xs text-slate-500">Live database sync enabled</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">Full Name</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500 transition"
-              placeholder="e.g. Alex Miller"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">Email Address</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500 transition"
-              placeholder="user@domain.com"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">Age</label>
-            <input
-              type="number"
-              min={12}
-              max={110}
-              value={age}
-              onChange={(e) => handleAgeChange(Number(e.target.value))}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">Gender</label>
-            <select
-              value={gender}
-              onChange={(e) => handleGenderChange(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">Weight (kg)</label>
-            <input
-              type="number"
-              step="0.1"
-              min={30}
-              max={250}
-              value={weight}
-              onChange={(e) => handleWeightChange(Number(e.target.value))}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">Height (cm)</label>
-            <input
-              type="number"
-              min={100}
-              max={240}
-              value={height}
-              onChange={(e) => handleHeightChange(Number(e.target.value))}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-        </div>
-
-        {/* Goal & Dietary Preferences */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Primary Nutrition Goal
-            </label>
-            <select
-              value={goal}
-              onChange={(e) => handleGoalChange(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="Healthy eating">Healthy eating (Clean Energy & Vitality)</option>
-              <option value="Increase protein">Increase protein (Muscle Protein Synthesis)</option>
-              <option value="Weight management">Weight management (Fat Loss / Calorie Deficit)</option>
-              <option value="Fitness nutrition">Fitness nutrition (Athletic Performance & Fuel)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Dietary Preference
-            </label>
-            <select
-              value={dietaryPref}
-              onChange={(e) => setDietaryPref(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="Vegetarian">Vegetarian (Lacto-Ovo)</option>
-              <option value="Non-Vegetarian">Non-Vegetarian (Eggs & Meat)</option>
-              <option value="Eggetarian">Eggetarian (Vegetarian + Eggs)</option>
-              <option value="Vegan">Vegan (100% Plant-Based)</option>
-              <option value="Omnivore">Omnivore / Flexible</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Activity & Student/Budget Context */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Activity Multiplier
-            </label>
-            <select
-              value={activityLevel}
-              onChange={(e: any) => handleActivityChange(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="sedentary">Sedentary (Desk job)</option>
-              <option value="light">Light Activity (1–3 days/wk)</option>
-              <option value="moderate">Moderate Activity (3–5 days/wk)</option>
-              <option value="active">Active (6–7 days/wk)</option>
-              <option value="very_active">Very Active (Heavy training)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Budget Preference
-            </label>
-            <select
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="low">Budget-Friendly (₹/Student Thrift)</option>
-              <option value="medium">Standard / Balanced</option>
-              <option value="high">Premium / Flexible</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Food Environment
-            </label>
-            <select
-              value={hostelContext}
-              onChange={(e) => setHostelContext(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="Hostel mess & canteen food">Hostel Mess & Canteen</option>
-              <option value="Home cooked food">Home Cooked Food</option>
-              <option value="Restaurant & food delivery">Food Delivery & Dining</option>
-              <option value="Self cooking / dorm">Self Cooking in Dorm</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-          <div>
-            {savedSuccess && (
-              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Profile, email & targets saved successfully!
-              </span>
-            )}
-            {errorMsg && (
-              <span className="text-xs text-rose-400 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
-                {errorMsg}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-slate-700 hover:border-rose-500/30 flex items-center gap-1.5 transition cursor-pointer"
-                title="Log out and return to starting page"
+              <div
+                className={`p-2 rounded-lg transition-colors ${
+                  isActive
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                }`}
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Log Out</span>
-              </button>
-            )}
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? "Saving..." : "Save Calibration"}</span>
+                {tab.icon}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-bold truncate leading-tight">{tab.label}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate hidden sm:block">
+                  {tab.subtitle}
+                </div>
+              </div>
             </button>
-          </div>
-        </div>
-      </form>
+          );
+        })}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TAB CONTENT CONTAINER                                                    */}
+      {/* ========================================================================= */}
+      <div className="relative">
+        <AnimatePresence mode="wait">
+          {/* ===================================================================== */}
+          {/* 1. BIOMETRICS TAB                                                     */}
+          {/* Body stats, activity level, and dynamic metabolic metrics (BMI, BMR, TDEE) */}
+          {/* ===================================================================== */}
+          {activeTab === "biometrics" && (
+            <motion.div
+              key="biometrics"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-6"
+            >
+              {/* Dynamic Metabolic Scorecard */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Body Mass Index
+                    </span>
+                    <Scale className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <span>{bmi}</span>
+                    <span
+                      className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                        bmi >= 18.5 && bmi <= 24.9
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                          : bmi < 18.5
+                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                          : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                      }`}
+                    >
+                      {bmi < 18.5 ? "Underweight" : bmi <= 24.9 ? "Optimal (18.5-24.9)" : "Overweight"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Calculated from height ({height}cm) & weight ({weight}kg).
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Basal Metabolic Rate
+                    </span>
+                    <Flame className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-baseline gap-1">
+                    <span>{targets.bmr}</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">kcal/day</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Base energy burned at complete rest (Mifflin-St Jeor).
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Daily Energy Expenditure
+                    </span>
+                    <Zap className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-baseline gap-1">
+                    <span>{targets.tdee}</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">kcal/day</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    TDEE with {activityLevel.replace("_", " ")} activity factor.
+                  </p>
+                </div>
+              </div>
+
+              {/* Target Macros Breakdown */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 dark:text-slate-200">
+                      Target Macro Calibration
+                    </h3>
+                  </div>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Live dynamic recalculation
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Calorie Target</span>
+                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{targets.calories} kcal</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                    <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">Protein Target</span>
+                    <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-1">{targets.protein}g</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">Carbs Target</span>
+                    <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">{targets.carbs}g</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Fats Target</span>
+                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{targets.fats}g</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Biometrics Controls */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 pb-4 border-b border-slate-200 dark:border-slate-800">
+                  <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Physical Body Stats
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Age */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Age (years)</label>
+                    <input
+                      type="number"
+                      min={12}
+                      max={110}
+                      value={age}
+                      onChange={(e) => handleAgeChange(Number(e.target.value))}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+
+                  {/* Gender */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Gender</label>
+                    <select
+                      value={gender}
+                      onChange={(e) => handleGenderChange(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Weight */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Weight (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={30}
+                      max={250}
+                      value={weight}
+                      onChange={(e) => handleWeightChange(Number(e.target.value))}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+
+                  {/* Height */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Height (cm)</label>
+                    <input
+                      type="number"
+                      min={100}
+                      max={240}
+                      value={height}
+                      onChange={(e) => handleHeightChange(Number(e.target.value))}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Activity Level Selector */}
+                <div className="space-y-2 pt-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Daily Activity Level & Multiplier
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      { id: "sedentary", title: "Sedentary", factor: "1.2x", desc: "Desk job, little or no exercise" },
+                      { id: "light", title: "Light Activity", factor: "1.375x", desc: "Light exercise / sports 1-3 days/wk" },
+                      { id: "moderate", title: "Moderate Activity", factor: "1.55x", desc: "Moderate exercise 3-5 days/wk" },
+                      { id: "active", title: "Active", factor: "1.725x", desc: "Hard exercise 6-7 days/wk" },
+                      { id: "very_active", title: "Very Active", factor: "1.9x", desc: "Physical job or intense training" },
+                    ].map((lvl) => {
+                      const isSelected = activityLevel === lvl.id;
+                      return (
+                        <div
+                          key={lvl.id}
+                          onClick={() => handleActivityChange(lvl.id as any)}
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none ${
+                            isSelected
+                              ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500 text-emerald-950 dark:text-emerald-100 shadow-xs"
+                              : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold">{lvl.title}</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                              {lvl.factor}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{lvl.desc}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Save Biometrics Action */}
+                <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveProfile()}
+                    disabled={saving}
+                    className="px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-md shadow-emerald-500/20 transition cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Biometrics</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ===================================================================== */}
+          {/* 2. DIETARY TAB                                                        */}
+          {/* Nutritional goal, diet type (cards with badges), hostel context, and budget tier */}
+          {/* ===================================================================== */}
+          {activeTab === "dietary" && (
+            <motion.div
+              key="dietary"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-6"
+            >
+              {/* Goal Selection Cards */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      Primary Nutritional Goal
+                    </h3>
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Caloric ratio driver</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {goalOptions.map((g) => {
+                    const isSelected = goal === g.id;
+                    return (
+                      <div
+                        key={g.id}
+                        onClick={() => handleGoalChange(g.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                          isSelected
+                            ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500 shadow-xs"
+                            : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shrink-0">
+                          {g.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
+                              {g.title}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                              {g.badge}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{g.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Diet Type Cards with Badges */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Utensils className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      Dietary Pattern & Preferences
+                    </h3>
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Card selections</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {dietaryOptions.map((opt) => {
+                    const isSelected = dietaryPref === opt.id;
+                    return (
+                      <div
+                        key={opt.id}
+                        onClick={() => setDietaryPref(opt.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500 shadow-xs"
+                            : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xl">{opt.icon}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {opt.badge}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{opt.title}</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{opt.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Hostel Context & Budget Tier */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Food Environment */}
+                <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Building className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      Food Environment / Mess Context
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Tailors food scans and smart recommendations to your cooking accessibility.
+                  </p>
+                  <select
+                    value={hostelContext}
+                    onChange={(e) => setHostelContext(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                  >
+                    <option value="Hostel mess & canteen food">Hostel Mess & College Canteen</option>
+                    <option value="Home cooked food">Home Cooked Food</option>
+                    <option value="Restaurant & food delivery">Food Delivery & Dining Out</option>
+                    <option value="Self cooking / dorm">Self Cooking in Dorm / Flat</option>
+                  </select>
+                </div>
+
+                {/* Budget Tier */}
+                <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      Budget Preference Tier
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Prioritizes cost-effective high-protein meal substitutions.
+                  </p>
+                  <select
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                  >
+                    <option value="low">Budget-Friendly (₹/Student Thrift)</option>
+                    <option value="medium">Standard / Balanced</option>
+                    <option value="high">Premium / Flexible</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Save Dietary Action */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleSaveProfile()}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-md shadow-emerald-500/20 transition cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Dietary Settings</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ===================================================================== */}
+          {/* 3. NOTIFICATIONS TAB                                                  */}
+          {/* Automated AI digests, schedule toggles, and instant preview           */}
+          {/* ===================================================================== */}
+          {activeTab === "notifications" && (
+            <motion.div
+              key="notifications"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-6"
+            >
+              {/* Notification Hub Card */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                          Automated AI Digest Engine
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                          Active Dispatch
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Target Recipient: <span className="font-semibold text-slate-900 dark:text-slate-200">{email || "Please set in Account tab"}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Instant Test Action */}
+                  <button
+                    id="send-instant-digest-btn"
+                    type="button"
+                    onClick={handleSendInstantDigest}
+                    disabled={sendingDigest}
+                    className="px-4 py-2.5 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 transition shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer self-start sm:self-center"
+                  >
+                    {sendingDigest ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Generating Digest...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Preview & Send Digest</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Schedule Toggles */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Automated Notification Schedules
+                    </span>
+                    {prefSaveStatus && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {prefSaveStatus}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* Toggle 1: Daily AI Evening Digest */}
+                    <ToggleSwitch
+                      id="toggle-daily-digest"
+                      checked={emailDailyDigest}
+                      onChange={(val) => handleToggleEmailPref("daily", val)}
+                      label="Daily AI Evening Digest"
+                      description="Daily @ 8:30 PM: Breakdown of consumed macros, metabolic velocity, and next action."
+                      badge="Daily"
+                      icon={<Clock className="w-4 h-4" />}
+                      activeColor="emerald"
+                    />
+
+                    {/* Toggle 2: Weekly Metabolic Progress Recap */}
+                    <ToggleSwitch
+                      id="toggle-weekly-recap"
+                      checked={emailWeeklyRecap}
+                      onChange={(val) => handleToggleEmailPref("weekly", val)}
+                      label="Weekly Metabolic Recap"
+                      description="Every Sunday: 7-day caloric balance, protein adherence %, and goal velocity."
+                      badge="Weekly"
+                      icon={<Activity className="w-4 h-4" />}
+                      activeColor="indigo"
+                    />
+
+                    {/* Toggle 3: High Deficit & Satiety Alerts */}
+                    <ToggleSwitch
+                      id="toggle-deficit-alerts"
+                      checked={emailDeficitAlerts}
+                      onChange={(val) => handleToggleEmailPref("alerts", val)}
+                      label="High Deficit & Satiety Alerts"
+                      description="Real-time alert when remaining protein deficit exceeds 35g before dinner."
+                      badge="Alert"
+                      icon={<Flame className="w-4 h-4" />}
+                      activeColor="amber"
+                    />
+
+                    {/* Toggle 4: Hostel Mess & Canteen Hacks */}
+                    <ToggleSwitch
+                      id="toggle-hostel-hacks"
+                      checked={emailHostelHacks}
+                      onChange={(val) => handleToggleEmailPref("hostel", val)}
+                      label="Hostel Mess Nutrition Hacks"
+                      description="Weekly curated mess survival guide with affordable local high-protein swaps."
+                      badge="Mess Mode"
+                      icon={<Building className="w-4 h-4" />}
+                      activeColor="cyan"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ===================================================================== */}
+          {/* 4. ACCOUNT TAB                                                        */}
+          {/* Basic identity (Name, Email), credentials, and session management     */}
+          {/* ===================================================================== */}
+          {activeTab === "account" && (
+            <motion.div
+              key="account"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-6"
+            >
+              {/* Identity Details Card */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-400 via-indigo-500 to-purple-500 p-[2px] shadow-sm">
+                    <div className="w-full h-full rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center font-black text-slate-800 dark:text-slate-100 text-base">
+                      {name
+                        ? name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()
+                        : "U"}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      User Identity & Credentials
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Personal name, communication email, and authentication state.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      placeholder="e.g. Shweta Rawat"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      placeholder="user@domain.com"
+                    />
+                  </div>
+                </div>
+
+                {/* Session & Security Info */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      Session & Data Security
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                      Authenticated
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Database</span>
+                      <strong className="text-slate-800 dark:text-slate-200">Local SQLite & Cloud Sync</strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Version</span>
+                      <strong className="text-slate-800 dark:text-slate-200">NutriSync v2.0 AI</strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Status</span>
+                      <strong className="text-emerald-600 dark:text-emerald-400">Active Profile</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Session Management Actions */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                  {onLogout && (
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-2xl text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Log out and return to starting page"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Log Out Session</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveProfile()}
+                    disabled={saving}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Account Info</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* ========================================================================= */}
       {/* MODAL: EMAIL DIGEST INBOX PREVIEW                                         */}
       {/* ========================================================================= */}
       {showDigestModal && digestResponse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/60">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                   <Inbox className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     Live Email Digest Inbox Preview
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    To: <span className="text-slate-200 font-semibold">{digestResponse.targetEmail}</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    To: <span className="text-slate-800 dark:text-slate-200 font-semibold">{digestResponse.targetEmail}</span>
                   </p>
                 </div>
               </div>
@@ -731,17 +1165,17 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyDigestHtml}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition flex items-center gap-1.5 cursor-pointer"
                   title="Copy HTML to clipboard"
                 >
-                  {copiedDigest ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedDigest ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedDigest ? "Copied" : "Copy HTML"}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowDigestModal(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -749,16 +1183,16 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
             </div>
 
             {/* Email Metadata Header */}
-            <div className="px-5 py-3 bg-slate-950/40 border-b border-slate-800 text-xs space-y-1.5">
-              <div className="flex items-center justify-between text-slate-400">
+            <div className="px-5 py-3 bg-slate-100/60 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
+              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                 <span>
                   <strong>Subject:</strong> {digestResponse.subject}
                 </span>
-                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 font-bold">
                   Status: 200 OK Dispatched
                 </span>
               </div>
-              <div className="text-slate-400 text-[11px] flex items-center gap-3">
+              <div className="text-slate-500 dark:text-slate-400 text-[11px] flex items-center gap-3">
                 <span>From: <strong>NutriSync AI &lt;digest@nutrisync.ai&gt;</strong></span>
                 <span>•</span>
                 <span>Sent: {new Date(digestResponse.sentAt).toLocaleTimeString()}</span>
@@ -766,7 +1200,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
             </div>
 
             {/* Rendered HTML Email Preview */}
-            <div className="flex-1 overflow-y-auto p-4 bg-slate-950/90">
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950/90">
               <div
                 className="rounded-2xl overflow-hidden shadow-inner"
                 dangerouslySetInnerHTML={{ __html: digestResponse.htmlPreview }}
@@ -774,8 +1208,8 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
+            <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Delivered directly to {digestResponse.targetEmail}
               </span>
               <button

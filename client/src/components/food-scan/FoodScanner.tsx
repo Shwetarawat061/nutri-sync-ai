@@ -183,9 +183,10 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
         userTargets
       );
 
+      const baseWeight = result.estimated_weight_g || 350;
       setScanResult(result);
       setBaseScan(result);
-      setPortionWeight(350);
+      setPortionWeight(baseWeight);
     } catch (err: any) {
       console.error("Scanning failed:", err);
       setErrorMsg(err.message || "Failed to analyze image with AI.");
@@ -194,11 +195,12 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
     }
   };
 
-  // Adjust portion size slider (350g baseline)
+  // Adjust portion size slider
   const handlePortionChange = (newGrams: number) => {
     setPortionWeight(newGrams);
     if (!baseScan) return;
-    const factor = newGrams / 350;
+    const baseWeight = baseScan.estimated_weight_g || 350;
+    const factor = newGrams / baseWeight;
     setScanResult({
       ...baseScan,
       calories: Math.round(baseScan.calories * factor),
@@ -209,33 +211,31 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
     });
   };
 
-  // Preset sample plates
-  const handleQuickDemoPlate = (plateName: string, calories = 320, protein = 28, carbs = 27, fats = 12) => {
+  // Preset sample plates adhering to specific identification & honest metabolic insight
+  const handleQuickDemoPlate = (
+    plateName: string,
+    calories = 320,
+    protein = 28,
+    carbs = 27,
+    fats = 12,
+    weight = 350,
+    glycemic: "Low" | "Medium" | "High" = "Medium",
+    rating = 8,
+    metabolic = "Steady glycemic release with sustained satiety.",
+    reasoning = "Bioavailable macronutrients balanced for muscle preservation and metabolic health."
+  ) => {
     stopCameraStream();
-    const demoImg =
-      plateName.includes("Paneer")
-        ? "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80"
-        : "https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=600&auto=format&fit=crop&q=80";
+    let demoImg = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80";
+    if (plateName.includes("Donut")) {
+      demoImg = "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80";
+    } else if (plateName.includes("Biryani")) {
+      demoImg = "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80";
+    } else if (plateName.includes("Eggs")) {
+      demoImg = "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=600&auto=format&fit=crop&q=80";
+    }
 
     setSelectedImage(demoImg);
-    const demoResult: FoodScanResponse = {
-      food_name: plateName,
-      calories,
-      protein,
-      carbs,
-      fats,
-      fiber: 4.5,
-      glycemic_index: protein > 25 ? "Low" : "Medium",
-      health_rating: 9,
-      nutrition_reasoning:
-        "High biological value protein balanced with dietary fiber and low glycemic carbohydrates. High satiety velocity.",
-      metabolic_impact:
-        "Add a side salad or curd to hit your next target window. Steady glycemic release with zero rapid glucose spikes.",
-      confidence: "high",
-    };
-    setScanResult(demoResult);
-    setBaseScan(demoResult);
-    setPortionWeight(350);
+    runScan(demoImg, "image/jpeg");
   };
 
   const handleSaveToTracker = async () => {
@@ -321,13 +321,13 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              AI Food Vision Engine
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                Gemini 3.7 Flash
+              NutriSync Vision AI
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                Gemini 3.7 Vision
               </span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Multimodal optical portion & nutrient intelligence
+              Expert optical portion breakdown & honest metabolic analysis
             </p>
           </div>
         </div>
@@ -445,19 +445,66 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
 
         {/* Quick Demo Previews if not uploaded */}
         {!selectedImage && !scanning && !isCameraActive && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-            <span className="text-xs font-semibold text-slate-400">Try sample:</span>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-4 max-w-md mx-auto">
+            <span className="text-[11px] font-bold text-slate-400 w-full text-center">
+              Try NutriSync Vision AI sample dishes:
+            </span>
             <button
-              onClick={() => handleQuickDemoPlate("Breakfast Plate", 320, 28, 27, 12)}
-              className="px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition shadow-sm cursor-pointer"
+              onClick={() =>
+                handleQuickDemoPlate(
+                  "Glazed Chocolate Donut",
+                  290,
+                  3.5,
+                  38,
+                  15,
+                  85,
+                  "High",
+                  2,
+                  "Rapid glycemic surge driven by refined flour and simple sugars. Minimal protein satiety.",
+                  "High simple sugars and refined fats; minimal protein satiety. Pair with a boiled egg or whey shake to blunt insulin spike."
+                )
+              }
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-pink-500 transition shadow-sm cursor-pointer"
             >
-              🍳 Breakfast Plate
+              🍩 Glazed Chocolate Donut
             </button>
             <button
-              onClick={() => handleQuickDemoPlate("Hostel Paneer Bowl", 410, 24, 45, 16)}
-              className="px-3 py-1 rounded-full text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition shadow-sm cursor-pointer"
+              onClick={() =>
+                handleQuickDemoPlate(
+                  "Paneer Butter Masala with 2 Rotis",
+                  520,
+                  22,
+                  54,
+                  26,
+                  380,
+                  "Medium",
+                  7,
+                  "Moderate glycemic impact buffered by dairy casein and complex whole-wheat fiber.",
+                  "Rich in slow-digesting casein protein; balance rich gravy by pairing with a fresh salad or buttermilk."
+                )
+              }
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition shadow-sm cursor-pointer"
             >
-              🥗 Veggie Paneer Bowl
+              🥘 Paneer Butter Masala & 2 Rotis
+            </button>
+            <button
+              onClick={() =>
+                handleQuickDemoPlate(
+                  "Chicken Biryani with Raita",
+                  610,
+                  34,
+                  68,
+                  22,
+                  450,
+                  "Medium",
+                  8,
+                  "High bioavailable animal protein with sustained energy from spiced basmati and cooling probiotic curd raita.",
+                  "High protein yield from chicken breast/thigh. Opt for cucumber raita to increase digestive enzyme activity."
+                )
+              }
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-amber-500 transition shadow-sm cursor-pointer"
+            >
+              🍗 Chicken Biryani & Raita
             </button>
           </div>
         )}

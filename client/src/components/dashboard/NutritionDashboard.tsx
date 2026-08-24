@@ -34,6 +34,7 @@ interface NutritionDashboardProps {
   onNavigateToTracker: () => void;
   onNavigateToDietPlan: () => void;
   onNavigateToProfile: () => void;
+  onNavigateToAdvisor?: () => void;
   onMealDeleted?: (id: string) => void;
 }
 
@@ -46,6 +47,7 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
   onNavigateToTracker,
   onNavigateToDietPlan,
   onNavigateToProfile,
+  onNavigateToAdvisor,
   onMealDeleted,
 }) => {
   const [insights, setInsights] = useState<string[]>([]);
@@ -457,20 +459,33 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
             )}
           </div>
 
-          <div className="p-3 rounded-2xl bg-gradient-to-r from-sky-500/10 to-teal-500/10 border border-sky-500/20 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-sky-500" />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Weekly Planner
-              </span>
+          <div className="space-y-2 pt-2">
+            {onNavigateToAdvisor && (
+              <button
+                onClick={onNavigateToAdvisor}
+                className="w-full p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Chat with AI Health Advisor</span>
+                <ChevronRight className="w-4 h-4 ml-auto" />
+              </button>
+            )}
+
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-sky-500/10 to-teal-500/10 border border-sky-500/20 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-sky-500" />
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Weekly Planner
+                </span>
+              </div>
+              <button
+                onClick={onNavigateToDietPlan}
+                className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Explore Plan</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <button
-              onClick={onNavigateToDietPlan}
-              className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>Explore Plan</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { User, Mail, Sparkles, Scale, Ruler, Activity, ArrowRight, ArrowLeft, Target, Zap, DollarSign } from "lucide-react";
 import { motion } from "motion/react";
+import { NutriSyncLogo } from "./brand/NutriSyncLogo";
 import { UserProfile } from "../types";
 import { calculateMacroTargets, ACTIVITY_MULTIPLIERS } from "../lib/nutrition";
 import { api } from "../api";
@@ -94,33 +95,33 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
       animate={{ opacity: 1, y: 0 }}
       className="flex-1 flex items-center justify-center p-4 sm:p-6"
     >
-      <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden transition-colors duration-300">
         {/* Glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400">
-                <Zap className="w-6 h-6" />
-              </div>
+              <NutriSyncLogo variant="icon" size="md" />
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  NutriSync Decision Assistant
-                </span>
-                <h2 className="text-2xl font-black text-slate-100 mt-0.5">Personal Nutrition Profile</h2>
-                <p className="text-xs text-slate-400">Don't just track what you eat. Know what to do next.</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Decision Assistant
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5">Personal Nutrition Profile</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Don't just track what you eat. Know what to do next.</p>
               </div>
             </div>
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-700"
+                className="self-start sm:self-center px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Start</span>
+                <span>Back to Overview</span>
               </button>
             )}
           </div>
@@ -129,26 +130,26 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
             {/* Name & Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Full Name *</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Full Name *</label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Alex Rivera"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-950"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Email Address *</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Email Address *</label>
                 <input
                   type="email"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="alex@college.edu"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-950"
                 />
               </div>
             </div>
@@ -156,23 +157,23 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
             {/* Age, Gender, Weight, Height */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Age</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Age</label>
                 <input
                   type="number"
                   min={12}
                   max={100}
                   value={formData.age}
                   onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 20 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Gender</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Gender</label>
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="male">Male</option>
                   <option value="female">Female</option>
@@ -181,26 +182,26 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Weight (kg)</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Weight (kg)</label>
                 <input
                   type="number"
                   min={30}
                   max={250}
                   value={formData.weight}
                   onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 70 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Height (cm)</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Height (cm)</label>
                 <input
                   type="number"
                   min={100}
                   max={240}
                   value={formData.height}
                   onChange={(e) => setFormData({ ...formData, height: parseFloat(e.target.value) || 175 })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -208,11 +209,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
             {/* Goal & Dietary Preference */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Primary Nutrition Goal</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Primary Nutrition Goal</label>
                 <select
                   value={formData.goal}
                   onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="Healthy eating">Healthy eating (Clean Energy & Vitality)</option>
                   <option value="Increase protein">Increase protein (Muscle Protein Synthesis)</option>
@@ -222,11 +223,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Dietary Preference</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Dietary Preference</label>
                 <select
                   value={formData.dietary_pref}
                   onChange={(e) => setFormData({ ...formData, dietary_pref: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="Vegetarian">Vegetarian (Lacto-Ovo)</option>
                   <option value="Non-Vegetarian">Non-Vegetarian (Eggs & Meat)</option>
@@ -240,11 +241,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
             {/* Student Context: Budget & Hostel/Mess */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Budget Preference</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Budget Preference</label>
                 <select
                   value={formData.budget}
                   onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="low">Budget-Friendly (₹/Student Thrift)</option>
                   <option value="medium">Standard / Balanced</option>
@@ -253,11 +254,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Food Environment</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Food Environment</label>
                 <select
                   value={formData.hostel_context}
                   onChange={(e) => setFormData({ ...formData, hostel_context: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="Hostel mess & canteen food">Hostel Mess & College Canteen</option>
                   <option value="Home cooked food">Home Cooked Food</option>
@@ -268,34 +269,34 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
             </div>
 
             {/* Live Calculation Preview Card */}
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/20 space-y-3">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-emerald-500/20 space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300">Target Macro Calibration:</span>
-                <span className="text-emerald-400 font-bold">BMI: {bmi} ({bmi < 18.5 ? "Underweight" : bmi < 25 ? "Optimal" : "Overweight"})</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Target Macro Calibration:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">BMI: {bmi} ({bmi < 18.5 ? "Underweight" : bmi < 25 ? "Optimal" : "Overweight"})</span>
               </div>
 
               <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                  <div className="text-[10px] text-slate-400">Target Energy</div>
-                  <div className="text-sm font-extrabold text-slate-100 mt-0.5">{targets.calories} kcal</div>
+                <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Target Energy</div>
+                  <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">{targets.calories} kcal</div>
                 </div>
-                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                  <div className="text-[10px] text-blue-400">Protein</div>
-                  <div className="text-sm font-extrabold text-blue-400 mt-0.5">{targets.protein}g</div>
+                <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Protein</div>
+                  <div className="text-sm font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">{targets.protein}g</div>
                 </div>
-                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                  <div className="text-[10px] text-amber-400">Carbs</div>
-                  <div className="text-sm font-extrabold text-amber-400 mt-0.5">{targets.carbs}g</div>
+                <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Carbs</div>
+                  <div className="text-sm font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">{targets.carbs}g</div>
                 </div>
-                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                  <div className="text-[10px] text-emerald-400">Fats</div>
-                  <div className="text-sm font-extrabold text-emerald-400 mt-0.5">{targets.fats}g</div>
+                <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Fats</div>
+                  <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">{targets.fats}g</div>
                 </div>
               </div>
             </div>
 
             {errorMsg && (
-              <p className="text-xs text-rose-400 font-medium">{errorMsg}</p>
+              <p className="text-xs text-rose-500 dark:text-rose-400 font-medium">{errorMsg}</p>
             )}
 
             <button
