@@ -87,6 +87,49 @@ export function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS user_memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_email TEXT NOT NULL,
+      category TEXT NOT NULL, -- 'preference', 'constraint', 'habit', 'milestone', 'struggle'
+      memory_key TEXT NOT NULL,
+      memory_value TEXT NOT NULL,
+      confidence TEXT DEFAULT 'high',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_memories_user ON user_memories (user_email, category);
+
+    CREATE TABLE IF NOT EXISTS conversation_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_email TEXT NOT NULL,
+      role TEXT NOT NULL, -- 'user', 'assistant', 'system'
+      content TEXT NOT NULL,
+      state_snapshot TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_nutrition_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_email TEXT NOT NULL,
+      snapshot_date TEXT NOT NULL, -- YYYY-MM-DD
+      calories REAL NOT NULL,
+      protein REAL NOT NULL,
+      carbs REAL NOT NULL,
+      fats REAL NOT NULL,
+      fiber REAL DEFAULT 0,
+      meals_count INTEGER DEFAULT 0,
+      adherence_score REAL DEFAULT 85,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_email, snapshot_date) ON CONFLICT REPLACE,
+      FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_snapshots_user_date ON daily_nutrition_snapshots (user_email, snapshot_date);
   `);
 
   // Run safe migrations for existing tables if budget or hostel_context missing

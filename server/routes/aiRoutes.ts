@@ -320,6 +320,20 @@ aiRoutes.post("/health-advisor", async (req: Request, res: Response) => {
       budgetHostelMode: Boolean(budgetHostelMode),
     });
 
+    // Asynchronously log conversation turn & extract long term memories
+    try {
+      const email = userProfile?.email;
+      if (email) {
+        const lastUserMsg = messages.filter((m: any) => m.role === "user").pop()?.content || "";
+        const { logConversationTurn, extractAndPersistMemories } = await import("../services/memorySystem.js");
+        logConversationTurn(email, "user", lastUserMsg, { todayNutrition, budgetHostelMode });
+        logConversationTurn(email, "assistant", result.reply, result.action_summary);
+        extractAndPersistMemories(email, lastUserMsg, result.reply).catch(() => {});
+      }
+    } catch {
+      // Non-blocking background log
+    }
+
     return res.status(200).json({
       success: true,
       reply: result.reply,
@@ -334,5 +348,73 @@ aiRoutes.post("/health-advisor", async (req: Request, res: Response) => {
     });
   }
 });
+
+// ⏰ Dynamic Time-Aware Nutrition & Hydration Reminders
+aiRoutes.get("/reminders", async (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string;
+    const isHostelMode = req.query.hostel === "true" || req.query.hostel === "1";
+
+    let user = null;
+    if (email) {
+      user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    }
+
+    const { getUpcomingReminders } = await import("../services/memorySystem.js");
+    const reminders = getUpcomingReminders(user, isHostelMode);
+
+    return res.status(200).json({
+      success: true,
+      reminders,
+    });
+  } catch (error: any) {
+    console.error("❌ Error in /api/ai/reminders:", error);
+    return res.status(500).json({ error: "Failed to generate reminders", details: error.message });
+  }
+});
+
+// 🧠 Long-Term Memories Endpoint (GET & POST)
+aiRoutes.get("/memories", async (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string;
+    if (!email) {
+      return res.status(400).json({ error: "email query parameter is required" });
+    }
+
+    const { getUserMemories } = await import("../services/memorySystem.js");
+    const memories = getUserMemories(email);
+
+    return res.status(200).json({
+      success: true,
+      memories,
+    });
+  } catch (error: any) {
+    console.error("❌ Error in GET /api/ai/memories:", error);
+    return res.status(500).json({ error: "Failed to fetch user memories", details: error.message });
+  }
+});
+
+aiRoutes.post("/memories", async (req: Request, res: Response) => {
+  try {
+    const { email, category, key, value } = req.body;
+    if (!email || !key || !value) {
+      return res.status(400).json({ error: "email, key, and value are required" });
+    }
+
+    const { saveUserMemory, getUserMemories } = await import("../services/memorySystem.js");
+    saveUserMemory(email, category || "preference", key, value);
+    const updatedMemories = getUserMemories(email);
+
+    return res.status(200).json({
+      success: true,
+      message: "Memory persisted successfully",
+      memories: updatedMemories,
+    });
+  } catch (error: any) {
+    console.error("❌ Error in POST /api/ai/memories:", error);
+    return res.status(500).json({ error: "Failed to save memory", details: error.message });
+  }
+});
+
 
 

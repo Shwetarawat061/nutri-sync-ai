@@ -351,12 +351,14 @@ export default function App() {
               title="Profile & Settings"
             >
               {userProfile?.name
-                ? userProfile.name
+                ? String(userProfile.name)
+                    .trim()
                     .split(" ")
+                    .filter(Boolean)
                     .map((n) => n[0])
                     .join("")
                     .slice(0, 2)
-                    .toUpperCase()
+                    .toUpperCase() || "SR"
                 : "SR"}
             </button>
           </div>
@@ -420,6 +422,9 @@ export default function App() {
                 userProfile={userProfile}
                 onMealLogged={handleMealLogged}
                 onNavigateToTracker={() => setActiveTab("tracker")}
+                onNavigateToDashboard={() => setActiveTab("dashboard")}
+                onNavigateToAdvisor={() => setActiveTab("advisor")}
+                onNavigateToDietPlan={() => setActiveTab("diet")}
                 onClose={() => setActiveTab("dashboard")}
               />
             </motion.div>
@@ -458,6 +463,8 @@ export default function App() {
                 onToggleBudgetHostelMode={setBudgetHostelMode}
                 onMealLogged={handleMealLogged}
                 onNavigateToTracker={() => setActiveTab("tracker")}
+                dailyTotals={dailyTotals}
+                recentMeals={meals}
               />
             </motion.div>
           )}

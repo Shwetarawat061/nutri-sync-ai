@@ -1,5 +1,17 @@
 import React, { useState } from "react";
-import { Sparkles, ArrowRight, RefreshCw, Flame, Utensils, Droplets } from "lucide-react";
+import {
+  Sparkles,
+  ArrowRight,
+  RefreshCw,
+  Flame,
+  Utensils,
+  Droplets,
+  BookOpen,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+} from "lucide-react";
 import { NextBestActionData, UserProfile, DailyTotals, MealItem } from "../../types";
 import { api } from "../../api";
 import { getTimeOfDay } from "../../lib/utils";
@@ -23,6 +35,7 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
 }) => {
   const [actionData, setActionData] = useState<NextBestActionData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [showOptions, setShowOptions] = useState<boolean>(false);
 
   const fetchNextBestAction = async () => {
     if (!userProfile) return;
@@ -63,10 +76,10 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
   };
 
   React.useEffect(() => {
-    if (userProfile?.email && !actionData) {
+    if (userProfile?.email) {
       fetchNextBestAction();
     }
-  }, [userProfile?.email, dailyTotals.calories, budgetHostelMode]);
+  }, [userProfile?.email, dailyTotals.calories, dailyTotals.protein, budgetHostelMode]);
 
   const targetCal = userProfile?.calorie_target || 2100;
   const targetProt = userProfile?.protein_target || 120;
@@ -77,8 +90,14 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
   const carbsRatio = Math.round((dailyTotals.carbs / (userProfile?.carbs_target || 200)) * 100);
   const fatsRatio = Math.round((dailyTotals.fats / (userProfile?.fats_target || 60)) * 100);
 
+  const suggestedFoods = actionData?.suggested_foods || [
+    budgetHostelMode ? "1 bowl hostel Dal + 100g Curd" : "200g Greek Yogurt with Chia Seeds",
+    budgetHostelMode ? "3 Boiled Eggs with Toast" : "Grilled Chicken / Tofu Bowl",
+    budgetHostelMode ? "Sprouted Moong & Roasted Chana" : "Protein Shake with Almonds",
+  ];
+
   return (
-    <div className="genz-card p-5 relative overflow-hidden bg-gradient-to-r from-indigo-50/70 via-sky-50/50 to-purple-50/40 dark:from-slate-900/90 dark:via-indigo-950/40 dark:to-purple-950/30 border border-indigo-200/60 dark:border-indigo-500/20">
+    <div className="genz-card p-5 relative overflow-hidden bg-gradient-to-r from-indigo-50/70 via-sky-50/50 to-purple-50/40 dark:from-slate-900/90 dark:via-indigo-950/40 dark:to-purple-950/30 border border-indigo-200/60 dark:border-indigo-500/20 space-y-3.5">
       {/* Top Ambient Glow */}
       <div className="absolute -top-10 -right-10 w-36 h-36 bg-purple-400/20 dark:bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
 
@@ -101,7 +120,7 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
                 NutriSync Decision Engine ⚡
               </span>
               <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                {actionData?.title || "Next Best Action"}
+                {actionData?.title || (remainingProtein > 25 ? "Prioritize Bioavailable Protein" : "Maintain Balanced Pacing")}
               </span>
             </div>
 
@@ -110,11 +129,18 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
                 `Prioritize consuming ~${Math.round(remainingProtein * 0.4)}g protein in your next meal to stay on track.`}
             </p>
 
+            {/* AI Explainable Rationale */}
+            {actionData?.why && (
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium italic">
+                "{actionData.why}"
+              </p>
+            )}
+
             {/* AI Reasoning Context Flow */}
             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               <span className="font-bold text-indigo-600 dark:text-indigo-400">Context: </span>
               {budgetHostelMode ? "Hostel / Mess Menu Active • " : "Standard Kitchen • "}
-              {userProfile?.goal || "High Protein"} • {remainingProtein}g Protein Deficit
+              {userProfile?.goal || "High Protein"} • {remainingProtein}g Protein Deficit ({remainingCalories} kcal left)
             </div>
 
             {/* Micro Macro Badges */}
@@ -144,6 +170,14 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-500" : ""}`} />
           </button>
 
+          <button
+            onClick={() => setShowOptions(!showOptions)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 transition cursor-pointer"
+          >
+            <span>Food Swaps</span>
+            {showOptions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
           {onNavigateToScan && (
             <button
               onClick={onNavigateToScan}
@@ -155,6 +189,39 @@ export const NextBestActionCard: React.FC<NextBestActionCardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Expandable Food Swaps & Next Meal Recommendations */}
+      {showOptions && (
+        <div className="pt-3 border-t border-indigo-100 dark:border-indigo-900/50 space-y-2 relative z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+              <span>AI Suggested Food Swaps For Your Next Fuel Window:</span>
+            </div>
+            {onNavigateToDietPlan && (
+              <button
+                onClick={onNavigateToDietPlan}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <BookOpen className="w-3 h-3" />
+                <span>Open in Meal Planner</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {suggestedFoods.map((food, idx) => (
+              <div
+                key={idx}
+                className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-indigo-100 dark:border-indigo-800/60 text-xs text-slate-800 dark:text-slate-200 flex items-start gap-2 shadow-sm"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                <span className="leading-snug">{food}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

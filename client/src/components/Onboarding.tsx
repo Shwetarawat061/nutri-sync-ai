@@ -16,9 +16,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    age: 21,
-    weight: 68,
-    height: 172,
+    age: 21 as number | string,
+    weight: 68 as number | string,
+    height: 172 as number | string,
     gender: "male",
     activityLevel: "moderate" as keyof typeof ACTIVITY_MULTIPLIERS,
     goal: "Healthy eating",
@@ -29,21 +29,48 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const numWeight = Number(formData.weight) || 0;
+  const numHeight = Number(formData.height) || 0;
+  const numAge = Number(formData.age) || 0;
+
   const targets = calculateMacroTargets(
-    formData.weight,
-    formData.height,
-    formData.age,
+    numWeight,
+    numHeight,
+    numAge,
     formData.gender,
     formData.activityLevel,
     formData.goal
   );
 
-  const bmi = Number((formData.weight / Math.pow(formData.height / 100, 2)).toFixed(1));
+  const bmi = (numWeight > 0 && numHeight > 0)
+    ? Number((numWeight / Math.pow(numHeight / 100, 2)).toFixed(1))
+    : 0;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email) {
+    if (!formData.name || !String(formData.name).trim() || !formData.email || !String(formData.email).trim()) {
       setErrorMsg("Name and Email are required");
+      return;
+    }
+
+    const validAge = Number(formData.age);
+    const validWeight = Number(formData.weight);
+    const validHeight = Number(formData.height);
+
+    if (
+      formData.age === "" || isNaN(validAge) || validAge <= 0 ||
+      formData.weight === "" || isNaN(validWeight) || validWeight <= 0 ||
+      formData.height === "" || isNaN(validHeight) || validHeight <= 0 ||
+      targets.calories <= 0
+    ) {
+      setErrorMsg("Profile entries cannot be zero or empty (Age, Weight, and Height must be greater than 0). Changes have been discarded to prevent saving incorrect data.");
+      // Discard invalid entries back to default baseline
+      setFormData(prev => ({
+        ...prev,
+        age: 21,
+        weight: 68,
+        height: 172,
+      }));
       return;
     }
 
@@ -52,11 +79,11 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
 
     try {
       const profileToSave: Partial<UserProfile> = {
-        name: formData.name,
-        email: formData.email,
-        age: formData.age,
-        weight: formData.weight,
-        height: formData.height,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        age: validAge,
+        weight: validWeight,
+        height: validHeight,
         gender: formData.gender,
         bmi,
         bmr: targets.bmr,
@@ -73,7 +100,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
       };
 
       const saved = await api.onboardUser(profileToSave);
-      localStorage.setItem("user_email", formData.email);
+      localStorage.setItem("user_email", formData.email.trim());
       onComplete(saved);
       if (setToast) {
         setToast({ message: "Metabolic Profile Configured", type: "success" });
@@ -81,6 +108,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
     } catch (error: any) {
       console.error("Onboarding error:", error);
       setErrorMsg(error.message || "Failed to persist profile");
+      setFormData(prev => ({
+        ...prev,
+        age: 21,
+        weight: 68,
+        height: 172,
+      }));
       if (setToast) {
         setToast({ message: "Setup failed", type: "error" });
       }
@@ -160,10 +193,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Age</label>
                 <input
                   type="number"
-                  min={12}
-                  max={100}
                   value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 20 })}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -185,10 +216,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Weight (kg)</label>
                 <input
                   type="number"
-                  min={30}
-                  max={250}
+                  step="0.1"
                   value={formData.weight}
-                  onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 70 })}
+                  onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -197,10 +227,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Height (cm)</label>
                 <input
                   type="number"
-                  min={100}
-                  max={240}
                   value={formData.height}
-                  onChange={(e) => setFormData({ ...formData, height: parseFloat(e.target.value) || 175 })}
+                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>

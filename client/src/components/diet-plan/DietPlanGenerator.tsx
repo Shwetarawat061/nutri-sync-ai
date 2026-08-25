@@ -24,6 +24,8 @@ interface DietPlanGeneratorProps {
   onToggleBudgetHostelMode: (enabled: boolean) => void;
   onMealLogged: (meal: MealItem) => void;
   onNavigateToTracker?: () => void;
+  dailyTotals?: { calories: number; protein: number; carbs: number; fats: number };
+  recentMeals?: MealItem[];
 }
 
 export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
@@ -32,6 +34,8 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
   onToggleBudgetHostelMode,
   onMealLogged,
   onNavigateToTracker,
+  dailyTotals,
+  recentMeals,
 }) => {
   const [dietaryPref, setDietaryPref] = useState<string>(
     userProfile?.dietaryPreference || userProfile?.dietary_pref || "Vegetarian"
@@ -41,10 +45,20 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
     "Standard hostel mess menu: Dal, Roti, Rice, Seasonal Sabzi, Curd, Boiled Eggs / Paneer on select days"
   );
   const [dislikedFoods, setDislikedFoods] = useState<string>("");
+  const [useRemainingDeficit, setUseRemainingDeficit] = useState<boolean>(
+    Boolean(dailyTotals && (dailyTotals.calories > 0 || dailyTotals.protein > 0))
+  );
   const [generating, setGenerating] = useState<boolean>(false);
   const [dietPlan, setDietPlan] = useState<DietPlanData | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loggedMealIndices, setLoggedMealIndices] = useState<Record<number, boolean>>({});
+
+  const targetCal = userProfile?.calorie_target || 2100;
+  const targetProt = userProfile?.protein_target || 120;
+  const consumedCal = dailyTotals?.calories || 0;
+  const consumedProt = dailyTotals?.protein || 0;
+  const remainingCal = Math.max(300, targetCal - consumedCal);
+  const remainingProt = Math.max(15, targetProt - consumedProt);
 
   const handleGeneratePlan = async () => {
     if (!userProfile) return;
@@ -52,15 +66,22 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
     setErrorMsg(null);
     setLoggedMealIndices({});
 
+    const effectiveCalories = useRemainingDeficit ? remainingCal : targetCal;
+    const effectiveProtein = useRemainingDeficit ? remainingProt : targetProt;
+    const effectiveCarbs = useRemainingDeficit ? Math.max(30, Math.round(effectiveCalories * 0.45 / 4)) : (userProfile.carbs_target || 200);
+    const effectiveFats = useRemainingDeficit ? Math.max(10, Math.round(effectiveCalories * 0.25 / 9)) : (userProfile.fats_target || 60);
+
     try {
       const plan = await api.generateDietPlan({
-        userGoal: userProfile.goal || "Maintenance",
+        userGoal: useRemainingDeficit
+          ? `${userProfile.goal || "Fitness"} (Deficit remaining: ${remainingCal} kcal, ${remainingProt}g protein)`
+          : userProfile.goal || "Maintenance",
         dietaryPreference: dietaryPref,
         dailyTarget: {
-          calories: userProfile.calorie_target || 2100,
-          protein: userProfile.protein_target || 120,
-          carbs: userProfile.carbs_target || 200,
-          fats: userProfile.fats_target || 60,
+          calories: effectiveCalories,
+          protein: effectiveProtein,
+          carbs: effectiveCarbs,
+          fats: effectiveFats,
         },
         budget: budgetTier,
         isHostelMessMode: budgetHostelMode,
@@ -205,9 +226,47 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
           </div>
         )}
 
+        {/* Connected AI Loop: Adapt to Today's Remaining Target */}
+        {dailyTotals && (dailyTotals.calories > 0 || dailyTotals.protein > 0) && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-purple-50/50 to-sky-50/50 dark:from-slate-900 dark:via-indigo-950/30 dark:to-purple-950/20 border border-indigo-200/80 dark:border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                ⚡
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                    Live Metabolic Feedback Loop
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                    Active
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Logged today: <span className="font-bold text-slate-800 dark:text-slate-100">{consumedCal} kcal</span> & <span className="font-bold text-slate-800 dark:text-slate-100">{consumedProt}g Protein</span>. Remaining: <span className="font-bold text-indigo-600 dark:text-indigo-400">{remainingCal} kcal</span> & <span className="font-bold text-indigo-600 dark:text-indigo-400">{remainingProt}g Protein</span>.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setUseRemainingDeficit(!useRemainingDeficit)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                useRemainingDeficit
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                  : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-indigo-300"
+              }`}
+            >
+              <span>{useRemainingDeficit ? "✓ Calibrating to Remaining Gap" : "Calibrate to Remaining Gap"}</span>
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
           <span className="text-xs text-slate-400">
-            Generates 4 personalized meal windows with calculated macros.
+            {useRemainingDeficit
+              ? `Targeting remaining ~${remainingCal} kcal and ~${remainingProt}g protein for today's upcoming meals.`
+              : `Targeting full daily baseline of ${userProfile?.calorie_target || 2100} kcal.`}
           </span>
 
           <button
@@ -216,7 +275,7 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
             className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 flex items-center gap-1.5 shadow-md shadow-slate-900/10 cursor-pointer disabled:opacity-50"
           >
             <Sparkles className="w-4 h-4 text-cyan-400 dark:text-cyan-600" />
-            <span>{generating ? "Synthesizing..." : "Generate Meal Plan"}</span>
+            <span>{generating ? "Synthesizing..." : useRemainingDeficit ? "Generate Adaptive Plan" : "Generate Meal Plan"}</span>
           </button>
         </div>
 

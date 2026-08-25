@@ -18,6 +18,10 @@ import {
   Video,
   VideoOff,
   Check,
+  ArrowRight,
+  BookOpen,
+  MessageSquare,
+  LayoutGrid,
 } from "lucide-react";
 import { api } from "../../api";
 import { FoodScanResponse, MealItem, UserProfile } from "../../types";
@@ -27,6 +31,9 @@ interface FoodScannerProps {
   userProfile: UserProfile | null;
   onMealLogged: (meal: MealItem) => void;
   onNavigateToTracker?: () => void;
+  onNavigateToDashboard?: () => void;
+  onNavigateToAdvisor?: () => void;
+  onNavigateToDietPlan?: () => void;
   onClose?: () => void;
 }
 
@@ -34,6 +41,9 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
   userProfile,
   onMealLogged,
   onNavigateToTracker,
+  onNavigateToDashboard,
+  onNavigateToAdvisor,
+  onNavigateToDietPlan,
   onClose,
 }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -271,12 +281,6 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
       const saved = await api.logMeal(newMeal);
       onMealLogged(saved);
       setSavedSuccess(true);
-
-      setTimeout(() => {
-        if (onNavigateToTracker) {
-          onNavigateToTracker();
-        }
-      }, 900);
     } catch (err: any) {
       setErrorMsg("Failed to save meal: " + err.message);
     } finally {
@@ -743,36 +747,113 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
           </div>
         )}
 
-        {/* Bottom CTA Action Buttons (Reset / Add to Log) */}
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          <button
-            onClick={handleReset}
-            className="py-3 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Reset</span>
-          </button>
+        {/* Saved Success - AI Loop Next Step Briefing */}
+        {savedSuccess && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 dark:from-slate-900 dark:via-emerald-950/30 dark:to-indigo-950/30 border border-emerald-300/80 dark:border-emerald-500/30 space-y-3.5 shadow-lg shadow-emerald-500/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                    Meal Saved • AI Loop Updated ⚡
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    Added +{Math.round(isEditing ? editCalories : scanResult?.calories || 320)} kcal & +{Math.round(isEditing ? editProtein : scanResult?.protein || 28)}g Protein to your daily state.
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                Synced
+              </span>
+            </div>
 
-          <button
-            onClick={handleSaveToTracker}
-            disabled={saving || savedSuccess}
-            className="py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-extrabold transition shadow-lg shadow-slate-900/10 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            {savedSuccess ? (
-              <>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Logged!</span>
-              </>
-            ) : saving ? (
-              <span>Logging...</span>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                <span>Add to Log</span>
-              </>
-            )}
-          </button>
-        </div>
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-emerald-200/60 dark:border-emerald-700/40 text-xs space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                Next Best Step For Today:
+              </span>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                {scanResult?.metabolic_impact || scanResult?.nutrition_reasoning || "Balanced meal recorded. Next: pace your afternoon hydration and prepare for your evening protein target."}
+              </p>
+            </div>
+
+            {/* Quick Action Navigation Grid for the Loop */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {(onNavigateToDashboard || onClose) && (
+                <button
+                  type="button"
+                  onClick={onNavigateToDashboard || onClose}
+                  className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>See Next Best Action</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-auto" />
+                </button>
+              )}
+
+              {onNavigateToAdvisor && (
+                <button
+                  type="button"
+                  onClick={onNavigateToAdvisor}
+                  className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Ask AI Health Advisor</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-auto" />
+                </button>
+              )}
+
+              {onNavigateToDietPlan && (
+                <button
+                  type="button"
+                  onClick={onNavigateToDietPlan}
+                  className="p-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Adaptive Diet Plan</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleReset}
+                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Scan Another Meal</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom CTA Action Buttons (Reset / Add to Log) */}
+        {!savedSuccess && (
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={handleReset}
+              className="py-3 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+
+            <button
+              onClick={handleSaveToTracker}
+              disabled={saving || savedSuccess}
+              className="py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-extrabold transition shadow-lg shadow-slate-900/10 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {saving ? (
+                <span>Logging...</span>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Add to Log</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

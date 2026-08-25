@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Plus,
   Camera,
@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { MealItem, UserProfile } from "../../types";
 import { api } from "../../api";
-import { formatDate } from "../../lib/utils";
+import { formatDate, formatDateWithWeekday, formatFullDate, getLocalDateString, getWeekdayName } from "../../lib/utils";
 import { AISmartMealLogger } from "./AISmartMealLogger";
 
 interface MealTrackerProps {
@@ -59,6 +59,10 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [weekFilter, setWeekFilter] = useState<string>("This Week");
 
+  // Dynamic system dates
+  const todayDateStr = useMemo(() => getLocalDateString(), []);
+  const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString());
+
   // Form states for manual entry
   const [foodName, setFoodName] = useState<string>("");
   const [calories, setCalories] = useState<string>("");
@@ -67,6 +71,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
   const [fats, setFats] = useState<string>("");
   const [fiber, setFiber] = useState<string>("");
   const [mealType, setMealType] = useState<"Breakfast" | "Lunch" | "Dinner" | "Snack">("Lunch");
+  const [manualDate, setManualDate] = useState<string>(() => getLocalDateString());
   const [saving, setSaving] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -76,108 +81,117 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
   const targetCarbs = userProfile?.carbs_target || 250;
   const targetFats = userProfile?.fats_target || 70;
 
-  // Real-time totals calculated from logged meals
-  const totalCalories = useMemo(
-    () => meals.reduce((sum, m) => sum + (Number(m.calories) || 0), 0),
-    [meals]
-  );
-  const totalProtein = useMemo(
-    () => meals.reduce((sum, m) => sum + (Number(m.protein) || 0), 0),
-    [meals]
-  );
-  const totalCarbs = useMemo(
-    () => meals.reduce((sum, m) => sum + (Number(m.carbs) || 0), 0),
-    [meals]
-  );
-  const totalFats = useMemo(
-    () => meals.reduce((sum, m) => sum + (Number(m.fats) || 0), 0),
-    [meals]
-  );
+  // 1. Dynamic 7-day Monday -> Sunday Calendar Array
+  const weeklyCalendarDays = useMemo(() => {
+    const baseDate = new Date();
+    if (weekFilter === "Last Week") {
+      baseDate.setDate(baseDate.getDate() - 7);
+    }
+    const dayOfWeek = baseDate.getDay(); // 0 is Sun, 1 is Mon...
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(baseDate);
+    monday.setDate(baseDate.getDate() + diffToMonday);
 
-  // Remaining calories
-  const remainingCalories = Math.max(0, targetCalories - Math.round(totalCalories));
+    const weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const fullWeekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // Weekly Goal Progress Data dynamically aligned (Today is Monday)
-  const isThisWeek = weekFilter === "This Week";
-  const todayCals = totalCalories > 0 ? Math.round(totalCalories) : 1320;
-  const todayPct = totalCalories > 0
-    ? Math.min(100, Math.round((totalCalories / targetCalories) * 100))
-    : 73;
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = getLocalDateString(d);
 
-  const weeklyBars = isThisWeek
-    ? [
-        {
-          day: "Mon",
-          pct: todayPct,
-          calories: todayCals,
-          active: true,
-          label: "Today",
-        },
-        { day: "Tue", pct: 0, calories: 0, active: false },
-        { day: "Wed", pct: 0, calories: 0, active: false },
-        { day: "Thu", pct: 0, calories: 0, active: false },
-        { day: "Fri", pct: 0, calories: 0, active: false },
-        { day: "Sat", pct: 0, calories: 0, active: false },
-        { day: "Sun", pct: 0, calories: 0, active: false },
-      ]
-    : [
-        { day: "Mon", pct: 85, calories: 1530, active: false },
-        { day: "Tue", pct: 90, calories: 1620, active: false },
-        { day: "Wed", pct: 75, calories: 1350, active: false },
-        { day: "Thu", pct: 92, calories: 1656, active: false },
-        { day: "Fri", pct: 80, calories: 1440, active: false },
-        { day: "Sat", pct: 70, calories: 1260, active: false },
-        { day: "Sun", pct: 60, calories: 1080, active: false },
-      ];
+      // Filter meals from database for this exact date
+      const dayMeals = meals.filter((m) => m.created_at && m.created_at.startsWith(dateStr));
+      const dayCals = dayMeals.reduce((sum, m) => sum + (Number(m.calories) || 0), 0);
+      const dayProt = dayMeals.reduce((sum, m) => sum + (Number(m.protein) || 0), 0);
+      const dayCarbs = dayMeals.reduce((sum, m) => sum + (Number(m.carbs) || 0), 0);
+      const dayFats = dayMeals.reduce((sum, m) => sum + (Number(m.fats) || 0), 0);
+      const isToday = dateStr === todayDateStr;
+      const isSelected = dateStr === selectedDate;
+      const pct = targetCalories > 0 ? Math.min(100, Math.round((dayCals / targetCalories) * 100)) : 0;
 
-  // 7-day Nutrition trend data points for SVG line chart
-  const trendData = isThisWeek
-    ? [
-        { day: "Mon", calories: todayCals },
-        { day: "Tue", calories: 0 },
-        { day: "Wed", calories: 0 },
-        { day: "Thu", calories: 0 },
-        { day: "Fri", calories: 0 },
-        { day: "Sat", calories: 0 },
-        { day: "Sun", calories: 0 },
-      ]
-    : [
-        { day: "Mon", calories: 1530 },
-        { day: "Tue", calories: 1620 },
-        { day: "Wed", calories: 1350 },
-        { day: "Thu", calories: 1656 },
-        { day: "Fri", calories: 1440 },
-        { day: "Sat", calories: 1260 },
-        { day: "Sun", calories: 1080 },
-      ];
+      return {
+        date: dateStr,
+        dayNumber: d.getDate(),
+        dayShort: weekdayNames[i],
+        dayFull: fullWeekdayNames[i],
+        calories: Math.round(dayCals),
+        protein: Math.round(dayProt),
+        carbs: Math.round(dayCarbs),
+        fats: Math.round(dayFats),
+        mealsCount: dayMeals.length,
+        pct,
+        isToday,
+        isSelected,
+        label: isToday ? "Today" : undefined,
+      };
+    });
+  }, [weekFilter, meals, selectedDate, todayDateStr, targetCalories]);
+
+  // Average weekly progress
+  const weeklyAveragePct = useMemo(() => {
+    const daysWithMeals = weeklyCalendarDays.filter((d) => d.mealsCount > 0);
+    if (daysWithMeals.length === 0) return 0;
+    const sumPct = daysWithMeals.reduce((acc, d) => acc + d.pct, 0);
+    return Math.round(sumPct / daysWithMeals.length);
+  }, [weeklyCalendarDays]);
+
+  // 2. Active Selected Day Meals & Computed Totals
+  const selectedDayMeals = useMemo(() => {
+    return meals.filter((m) => m.created_at && m.created_at.startsWith(selectedDate));
+  }, [meals, selectedDate]);
+
+  const selectedDayTotals = useMemo(() => {
+    return selectedDayMeals.reduce(
+      (acc, m) => ({
+        calories: acc.calories + (Number(m.calories) || 0),
+        protein: acc.protein + (Number(m.protein) || 0),
+        carbs: acc.carbs + (Number(m.carbs) || 0),
+        fats: acc.fats + (Number(m.fats) || 0),
+        fiber: acc.fiber + (Number(m.fiber) || 0),
+      }),
+      { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 }
+    );
+  }, [selectedDayMeals]);
+
+  // Remaining calories for selected day
+  const remainingCalories = Math.max(0, targetCalories - Math.round(selectedDayTotals.calories));
+
+  // 3. 7-day Nutrition trend data points for SVG line chart
+  const trendData = useMemo(() => {
+    return weeklyCalendarDays.map((d) => ({
+      day: d.dayShort,
+      dayFull: d.dayFull,
+      date: d.date,
+      calories: d.calories,
+      isToday: d.isToday,
+      isSelected: d.isSelected,
+    }));
+  }, [weeklyCalendarDays]);
 
   // SVG Chart Calculations
   const chartWidth = 320;
   const chartHeight = 120;
-  const maxCaloriesChart = 2000;
+  const maxCaloriesChart = Math.max(targetCalories * 1.3, ...weeklyCalendarDays.map((d) => d.calories), 2200);
   const goalLineY = chartHeight - (targetCalories / maxCaloriesChart) * chartHeight;
 
   const pointsString = trendData
     .map((d, index) => {
       const x = 20 + index * ((chartWidth - 40) / (trendData.length - 1));
-      const y = chartHeight - (d.calories / maxCaloriesChart) * (chartHeight - 15) - 10;
+      const y = chartHeight - (d.calories / maxCaloriesChart) * (chartHeight - 20) - 10;
       return `${x},${y}`;
     })
     .join(" ");
 
-  // Formatted date string for Today's Summary
-  const todayFormattedDate = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date());
+  // Formatted date string for Selected Day Summary
+  const isSelectedDateToday = selectedDate === todayDateStr;
+  const selectedDayFormattedDate = formatFullDate(selectedDate);
 
-  // Meal slot breakdown
-  const breakfastMeals = meals.filter((m) => m.meal_type === "Breakfast");
-  const lunchMeals = meals.filter((m) => m.meal_type === "Lunch");
-  const snackMeals = meals.filter((m) => m.meal_type === "Snack");
-  const dinnerMeals = meals.filter((m) => m.meal_type === "Dinner");
+  // Meal slot breakdown for the active selected day
+  const breakfastMeals = selectedDayMeals.filter((m) => m.meal_type === "Breakfast");
+  const lunchMeals = selectedDayMeals.filter((m) => m.meal_type === "Lunch");
+  const snackMeals = selectedDayMeals.filter((m) => m.meal_type === "Snack");
+  const dinnerMeals = selectedDayMeals.filter((m) => m.meal_type === "Dinner");
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +200,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
     setSaving(true);
     setErrorMessage(null);
     try {
+      // Build ISO timestamp matching chosen manualDate + current time
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      const mealCreatedAt = `${manualDate}T${timeStr}`;
+
       const newMeal: Partial<MealItem> = {
         user_email: userProfile.email,
         food_name: foodName,
@@ -196,14 +215,14 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         fiber: Number(fiber) || 0,
         meal_type: mealType,
         nutrition_reasoning: `Logged manually under ${mealType}.`,
-        created_at: new Date().toISOString(),
+        created_at: mealCreatedAt,
       };
 
       const saved = await api.logMeal(newMeal);
       onMealAdded(saved);
       setShowManualModal(false);
 
-      // Reset
+      // Reset form
       setFoodName("");
       setCalories("");
       setProtein("");
@@ -240,14 +259,23 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
   return (
     <div id="meal-plan-and-tracker-view" className="space-y-6 max-w-6xl mx-auto pb-28 px-2 sm:px-4">
-      {/* 1. Header Section (Matching Image 2) */}
+      {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+              System Calendar Synchronized
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-emerald-500" />
+              {formatDateWithWeekday(todayDateStr)}
+            </span>
+          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Meal Plan & Tracker
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Track daily nutrition, plan meals and build better habits.
+            Track daily nutrition, plan meals and build better metabolic habits.
           </p>
         </div>
 
@@ -255,7 +283,10 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         <div className="flex items-center gap-2.5">
           <button
             id="manual-entry-top-btn"
-            onClick={() => setShowManualModal(true)}
+            onClick={() => {
+              setManualDate(selectedDate);
+              setShowManualModal(true);
+            }}
             className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-2xs cursor-pointer flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -286,10 +317,10 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               <div className="absolute right-0 mt-2 w-72 p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 text-xs space-y-2 animate-in fade-in zoom-in-95">
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                   <span className="font-bold text-slate-900 dark:text-white">Nutrition Alerts</span>
-                  <span className="text-[10px] text-emerald-600 font-semibold">Live</span>
+                  <span className="text-[10px] text-emerald-600 font-semibold">Live System Date</span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-300">
-                  🎯 You've reached <strong>{Math.round(totalCalories || 1620)} kcal</strong> today. Drink water to stay hydrated!
+                  🎯 You've logged <strong>{Math.round(selectedDayTotals.calories)} kcal</strong> for {isSelectedDateToday ? "today" : formatFullDate(selectedDate)}.
                 </p>
               </div>
             )}
@@ -304,17 +335,22 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         budgetHostelMode={budgetHostelMode}
       />
 
-      {/* 2. Top Row: Weekly Goal Progress & Today's Summary (Matching Image 2) */}
+      {/* 2. Top Row: Weekly Goal Progress & Today's Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Card: Weekly Goal Progress (col-span-7) */}
         <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                Weekly Goal Progress
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Stay consistent and hit your nutrition goals!
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  Weekly Goal Progress
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold uppercase tracking-wider">
+                  Mon - Sun
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Click any weekday below to view historical meals and totals.
               </p>
             </div>
 
@@ -333,16 +369,28 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             </div>
           </div>
 
-          {/* Bar Chart Section */}
+          {/* Bar Chart Section: Monday through Sunday with dynamic dates */}
           <div className="pt-2">
             <div className="grid grid-cols-7 gap-2 sm:gap-3 items-end h-40 pb-2">
-              {weeklyBars.map((bar, idx) => (
-                <div key={idx} className="flex flex-col items-center gap-1.5 h-full justify-end group">
+              {weeklyCalendarDays.map((bar) => (
+                <button
+                  key={bar.date}
+                  type="button"
+                  onClick={() => setSelectedDate(bar.date)}
+                  className={`flex flex-col items-center gap-1.5 h-full justify-end group cursor-pointer p-1 rounded-2xl transition ${
+                    bar.isSelected
+                      ? "bg-slate-100/90 dark:bg-slate-800/80 ring-2 ring-emerald-500"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                  }`}
+                  title={`${bar.dayFull}, ${bar.date}: ${bar.calories} kcal (${bar.pct}% of target)`}
+                >
                   {/* Percent label on top */}
                   <span
-                    className={`text-[11px] font-bold ${
-                      bar.active
-                        ? "text-emerald-700 dark:text-emerald-400"
+                    className={`text-[10px] sm:text-[11px] font-bold ${
+                      bar.isSelected
+                        ? "text-emerald-700 dark:text-emerald-400 font-black"
+                        : bar.isToday
+                        ? "text-emerald-600 dark:text-emerald-400"
                         : "text-slate-400 dark:text-slate-500"
                     }`}
                   >
@@ -353,13 +401,15 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <div className="w-full max-w-[40px] sm:max-w-[48px] h-28 bg-slate-100 dark:bg-slate-800 rounded-2xl flex flex-col justify-end p-0.5 overflow-hidden">
                     <div
                       className={`w-full rounded-2xl transition-all duration-700 ${
-                        bar.active
+                        bar.isSelected
                           ? "bg-emerald-600 shadow-md shadow-emerald-600/30"
+                          : bar.isToday
+                          ? "bg-emerald-500/80"
                           : bar.pct > 0
-                          ? "bg-emerald-100 dark:bg-emerald-950/60 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-900"
+                          ? "bg-emerald-200 dark:bg-emerald-950/80 group-hover:bg-emerald-300 dark:group-hover:bg-emerald-900"
                           : "bg-transparent"
                       }`}
-                      style={{ height: `${Math.max(4, bar.pct)}%` }}
+                      style={{ height: `${Math.max(bar.pct > 0 ? 8 : 2, bar.pct)}%` }}
                     />
                   </div>
 
@@ -367,20 +417,22 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <div className="text-center">
                     <span
                       className={`text-xs font-semibold block ${
-                        bar.active
+                        bar.isSelected
                           ? "text-slate-900 dark:text-white font-black"
+                          : bar.isToday
+                          ? "text-emerald-600 dark:text-emerald-400 font-extrabold"
                           : "text-slate-500 dark:text-slate-400"
                       }`}
                     >
-                      {bar.day}
+                      {bar.dayShort}
                     </span>
-                    {bar.label && (
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block -mt-0.5">
-                        {bar.label}
+                    {bar.isToday && (
+                      <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 block -mt-0.5">
+                        Today
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -395,24 +447,42 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             </div>
 
             <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
-              <span>Average</span>
+              <span>Weekly Average</span>
               <strong className="font-extrabold text-slate-900 dark:text-white flex items-center gap-0.5">
-                {isThisWeek ? `${todayPct}%` : "80%"}{" "}
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-600 inline" />
+                {weeklyAveragePct}% <TrendingUp className="w-3.5 h-3.5 text-emerald-600 inline" />
               </strong>
             </div>
           </div>
         </div>
 
-        {/* Right Card: Today's Summary (col-span-5) */}
+        {/* Right Card: Dynamic Summary for Selected Date (col-span-5) */}
         <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4 flex flex-col justify-between">
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              Today's Summary
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {todayFormattedDate}
-            </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  {isSelectedDateToday ? "Today's Summary" : `${getWeekdayName(selectedDate)}'s Summary`}
+                </h2>
+                {isSelectedDateToday && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold uppercase">
+                    Active
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {selectedDayFormattedDate}
+              </p>
+            </div>
+
+            {!isSelectedDateToday && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayDateStr)}
+                className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold hover:bg-emerald-100 transition cursor-pointer"
+              >
+                Jump to Today
+              </button>
+            )}
           </div>
 
           {/* Donut Progress Ring + Legend */}
@@ -438,7 +508,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   strokeWidth="9"
                   strokeDasharray={2 * Math.PI * 40}
                   strokeDashoffset={
-                    2 * Math.PI * 40 * (1 - (totalCalories > 0 ? totalCalories / targetCalories : 1620 / 1800))
+                    2 * Math.PI * 40 * (1 - (selectedDayTotals.calories > 0 ? Math.min(1, selectedDayTotals.calories / targetCalories) : 0))
                   }
                   strokeLinecap="round"
                   fill="transparent"
@@ -446,7 +516,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span className="text-xl font-black text-slate-900 dark:text-white leading-tight">
-                  {totalCalories > 0 ? Math.round(totalCalories) : 1620}
+                  {Math.round(selectedDayTotals.calories)}
                 </span>
                 <span className="text-[10px] text-slate-400 font-bold uppercase">kcal</span>
               </div>
@@ -470,7 +540,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <span>Eaten</span>
                 </div>
                 <span className="font-extrabold text-slate-900 dark:text-white">
-                  {totalCalories > 0 ? Math.round(totalCalories) : 1620} kcal
+                  {Math.round(selectedDayTotals.calories)} kcal
                 </span>
               </div>
 
@@ -480,7 +550,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <span>Remaining</span>
                 </div>
                 <span className="font-extrabold text-slate-600 dark:text-slate-400">
-                  {totalCalories > 0 ? remainingCalories : 180} kcal
+                  {remainingCalories} kcal
                 </span>
               </div>
             </div>
@@ -495,7 +565,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 <span>Protein</span>
               </div>
               <span className="text-xs font-black text-slate-900 dark:text-white block mt-0.5">
-                {totalProtein > 0 ? Math.round(totalProtein) : 72} / {targetProtein}g
+                {Math.round(selectedDayTotals.protein)} / {targetProtein}g
               </span>
             </div>
 
@@ -506,7 +576,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 <span>Carbs</span>
               </div>
               <span className="text-xs font-black text-slate-900 dark:text-white block mt-0.5">
-                {totalCarbs > 0 ? Math.round(totalCarbs) : 182} / {targetCarbs}g
+                {Math.round(selectedDayTotals.carbs)} / {targetCarbs}g
               </span>
             </div>
 
@@ -517,7 +587,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 <span>Fats</span>
               </div>
               <span className="text-xs font-black text-slate-900 dark:text-white block mt-0.5">
-                {totalFats > 0 ? Math.round(totalFats) : 48} / {targetFats}g
+                {Math.round(selectedDayTotals.fats)} / {targetFats}g
               </span>
             </div>
           </div>
@@ -527,24 +597,33 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             onClick={() => setShowNutritionDetailsModal(true)}
             className="w-full text-center text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center justify-center gap-1 cursor-pointer pt-1 transition"
           >
-            <span>View Nutrition Details</span>
+            <span>View Nutrition Details ({selectedDayMeals.length} meals)</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* 3. Middle Section: Today's Meal Plan (Matching Image 2) */}
+      {/* 3. Middle Section: Meal Plan Slots for Selected Date */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-lg font-black text-slate-900 dark:text-white">
-            Today's Meal Plan
-          </h2>
+          <div>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">
+              {isSelectedDateToday ? "Today's Meal Plan" : `${getWeekdayName(selectedDate)}'s Meal Plan`}
+            </h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {selectedDayMeals.length} item{selectedDayMeals.length !== 1 ? "s" : ""} recorded for {selectedDate}
+            </span>
+          </div>
+
           <button
-            onClick={() => setShowManualModal(true)}
+            onClick={() => {
+              setManualDate(selectedDate);
+              setShowManualModal(true);
+            }}
             className="text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 flex items-center gap-1 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Meal</span>
+            <span>Add Meal for this day</span>
           </button>
         </div>
 
@@ -554,7 +633,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           <div
             onClick={() => {
               if (breakfastMeals.length > 0) setSelectedMealDetail(breakfastMeals[0]);
-              else setShowManualModal(true);
+              else {
+                setMealType("Breakfast");
+                setManualDate(selectedDate);
+                setShowManualModal(true);
+              }
             }}
             className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer shadow-2xs"
           >
@@ -573,20 +656,27 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               <div>
                 <h3 className="text-xs font-bold text-slate-900 dark:text-white">Breakfast</h3>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                  <span>{breakfastMeals[0] ? formatDate(breakfastMeals[0].created_at) : "8:00 AM"}</span>
-                  {breakfastMeals[0] && (
-                    <span className="font-semibold text-slate-600 dark:text-slate-300">
-                      • {Math.round(breakfastMeals[0].calories)} kcal
+                  {breakfastMeals[0] ? (
+                    <span className="font-semibold text-slate-600 dark:text-slate-300 truncate max-w-[130px]">
+                      {breakfastMeals[0].food_name} • {Math.round(breakfastMeals[0].calories)} kcal
                     </span>
+                  ) : (
+                    <span className="text-slate-400 italic">Not logged</span>
                   )}
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-              </div>
+              {breakfastMeals.length > 0 ? (
+                <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-emerald-500">
+                  <Plus className="w-3 h-3" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -594,7 +684,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           <div
             onClick={() => {
               if (lunchMeals.length > 0) setSelectedMealDetail(lunchMeals[0]);
-              else setShowManualModal(true);
+              else {
+                setMealType("Lunch");
+                setManualDate(selectedDate);
+                setShowManualModal(true);
+              }
             }}
             className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer shadow-2xs"
           >
@@ -613,17 +707,27 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               <div>
                 <h3 className="text-xs font-bold text-slate-900 dark:text-white">Lunch</h3>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                  <span className="flex items-center gap-1 text-amber-500 font-semibold">
-                    ☀️ {lunchMeals[0] ? Math.round(lunchMeals[0].calories) : "430"} kcal
-                  </span>
+                  {lunchMeals[0] ? (
+                    <span className="font-semibold text-slate-600 dark:text-slate-300 truncate max-w-[130px]">
+                      {lunchMeals[0].food_name} • {Math.round(lunchMeals[0].calories)} kcal
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 italic">Not logged</span>
+                  )}
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-              </div>
+              {lunchMeals.length > 0 ? (
+                <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-emerald-500">
+                  <Plus className="w-3 h-3" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -631,7 +735,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           <div
             onClick={() => {
               if (snackMeals.length > 0) setSelectedMealDetail(snackMeals[0]);
-              else setShowManualModal(true);
+              else {
+                setMealType("Snack");
+                setManualDate(selectedDate);
+                setShowManualModal(true);
+              }
             }}
             className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer shadow-2xs"
           >
@@ -650,17 +758,27 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               <div>
                 <h3 className="text-xs font-bold text-slate-900 dark:text-white">Snack</h3>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                  <span className="flex items-center gap-1 text-emerald-600 font-semibold">
-                    🌱 {snackMeals[0] ? Math.round(snackMeals[0].calories) : "150"} kcal
-                  </span>
+                  {snackMeals[0] ? (
+                    <span className="font-semibold text-slate-600 dark:text-slate-300 truncate max-w-[130px]">
+                      {snackMeals[0].food_name} • {Math.round(snackMeals[0].calories)} kcal
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 italic">Not logged</span>
+                  )}
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-              </div>
+              {snackMeals.length > 0 ? (
+                <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-emerald-500">
+                  <Plus className="w-3 h-3" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -668,7 +786,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           <div
             onClick={() => {
               if (dinnerMeals.length > 0) setSelectedMealDetail(dinnerMeals[0]);
-              else setShowManualModal(true);
+              else {
+                setMealType("Dinner");
+                setManualDate(selectedDate);
+                setShowManualModal(true);
+              }
             }}
             className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer shadow-2xs"
           >
@@ -687,9 +809,13 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               <div>
                 <h3 className="text-xs font-bold text-slate-900 dark:text-white">Dinner</h3>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                  <span className="flex items-center gap-1 text-sky-500 font-semibold">
-                    🌙 {dinnerMeals[0] ? Math.round(dinnerMeals[0].calories) : "500"} kcal
-                  </span>
+                  {dinnerMeals[0] ? (
+                    <span className="font-semibold text-slate-600 dark:text-slate-300 truncate max-w-[130px]">
+                      {dinnerMeals[0].food_name} • {Math.round(dinnerMeals[0].calories)} kcal
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 italic">Not logged</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -700,14 +826,16 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </div>
               ) : (
-                <div className="w-6 h-6 rounded-full border-2 border-rose-300 dark:border-rose-700 flex items-center justify-center" />
+                <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:text-emerald-500">
+                  <Plus className="w-3 h-3" />
+                </div>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. Bottom Row 3-Columns: AI Insights, Nutrition Trend, Upcoming Reminders (Matching Image 2) */}
+      {/* 4. Bottom Row 3-Columns: AI Insights, Dynamic Nutrition Trend, Upcoming Reminders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Column 1: AI Insights */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 flex flex-col justify-between">
@@ -716,7 +844,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               AI Insights
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Personalized insights to help you eat better
+              Personalized metabolic intelligence
             </p>
           </div>
 
@@ -728,10 +856,12 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               </div>
               <div className="text-xs space-y-0.5">
                 <h4 className="font-extrabold text-slate-900 dark:text-white">
-                  Great job with your protein intake!
+                  Target Protein Tracking
                 </h4>
                 <p className="text-slate-600 dark:text-slate-300 leading-snug">
-                  You're meeting 90% of your daily protein goal.
+                  {selectedDayTotals.protein >= targetProtein * 0.9
+                    ? "Great job! You've achieved your optimal daily protein threshold."
+                    : `Consumed ${Math.round(selectedDayTotals.protein)}g of ${targetProtein}g daily target.`}
                 </p>
               </div>
             </div>
@@ -743,10 +873,10 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               </div>
               <div className="text-xs space-y-0.5">
                 <h4 className="font-extrabold text-slate-900 dark:text-white">
-                  Tip for you
+                  Metabolic Pacing
                 </h4>
                 <p className="text-slate-600 dark:text-slate-300 leading-snug">
-                  Try adding more fiber-rich foods to improve digestion.
+                  Hydrate with 400ml water between meals to maintain steady electrolyte pacing.
                 </p>
               </div>
             </div>
@@ -761,7 +891,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           </button>
         </div>
 
-        {/* Column 2: Nutrition Trend */}
+        {/* Column 2: Nutrition Trend (Dynamic 7-Day Monday-Sunday Database Line) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>
@@ -769,7 +899,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 Nutrition Trend
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Your progress over the last 7 days
+                Actual calories over the 7-day week
               </p>
             </div>
 
@@ -849,15 +979,17 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               {/* Data points dots */}
               {trendData.map((d, index) => {
                 const x = 20 + index * ((chartWidth - 40) / (trendData.length - 1));
-                const y = chartHeight - (d.calories / maxCaloriesChart) * (chartHeight - 15) - 10;
+                const y = chartHeight - (d.calories / maxCaloriesChart) * (chartHeight - 20) - 10;
                 return (
                   <g key={index}>
                     <circle
                       cx={x}
                       cy={y}
-                      r={index === 3 ? "4.5" : "3"}
+                      r={d.isSelected ? "5" : d.isToday ? "4" : "3"}
                       className={
-                        index === 3
+                        d.isSelected
+                          ? "fill-slate-900 dark:fill-white stroke-emerald-500 stroke-2"
+                          : d.isToday
                           ? "fill-emerald-600 stroke-white stroke-2"
                           : "fill-emerald-500"
                       }
@@ -868,26 +1000,35 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             </svg>
           </div>
 
-          {/* Days axis */}
+          {/* Days axis (Monday to Sunday) */}
           <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1 border-t border-slate-100 dark:border-slate-800 pt-2">
-            <span>Mon</span>
-            <span>Tue</span>
-            <span>Wed</span>
-            <span className="font-extrabold text-emerald-600 dark:text-emerald-400">Thu</span>
-            <span>Fri</span>
-            <span>Sat</span>
-            <span>Sun</span>
+            {weeklyCalendarDays.map((d) => (
+              <button
+                key={d.date}
+                type="button"
+                onClick={() => setSelectedDate(d.date)}
+                className={`cursor-pointer transition ${
+                  d.isSelected
+                    ? "font-black text-slate-900 dark:text-white underline underline-offset-4"
+                    : d.isToday
+                    ? "font-extrabold text-emerald-600 dark:text-emerald-400"
+                    : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                }`}
+              >
+                {d.dayShort}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Column 3: Upcoming Reminders */}
+        {/* Column 3: Upcoming Reminders (Time-Aware) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 flex flex-col justify-between">
           <div>
             <h2 className="text-base font-black text-slate-900 dark:text-white">
               Upcoming Reminders
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Stay synchronized with your health routine
+              Synchronized with daily meal & hostel timings
             </p>
           </div>
 
@@ -899,10 +1040,10 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <Clock className="w-3.5 h-3.5" />
                 </div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Drink Water
+                  {budgetHostelMode ? "Mess Lunch Fuel Window" : "Lunch Fuel Window"}
                 </span>
               </div>
-              <span className="text-xs font-semibold text-slate-400">2:00 PM</span>
+              <span className="text-xs font-semibold text-slate-400">1:00 PM</span>
             </div>
 
             {/* Reminder 2 */}
@@ -912,7 +1053,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <Footprints className="w-3.5 h-3.5" />
                 </div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Evening Walk
+                  Post-Meal Walk (15 mins)
                 </span>
               </div>
               <span className="text-xs font-semibold text-slate-400">6:00 PM</span>
@@ -925,7 +1066,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   <Moon className="w-3.5 h-3.5" />
                 </div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Sleep Early
+                  Screen Off & Digestion Rest
                 </span>
               </div>
               <span className="text-xs font-semibold text-slate-400">10:30 PM</span>
@@ -942,7 +1083,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         </div>
       </div>
 
-      {/* 5. Bottom AI Food Scan Banner (Matching Image 2) */}
+      {/* 5. Bottom AI Food Scan Banner */}
       <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/30 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-5 shadow-xs">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
@@ -1013,6 +1154,19 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Meal Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     Meal Type
                   </label>
                   <select
@@ -1026,20 +1180,20 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                     <option value="Snack">Snack</option>
                   </select>
                 </div>
+              </div>
 
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Calories (kcal)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="420"
-                    value={calories}
-                    onChange={(e) => setCalories(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                  />
-                </div>
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Calories (kcal)
+                </label>
+                <input
+                  type="number"
+                  required
+                  placeholder="420"
+                  value={calories}
+                  onChange={(e) => setCalories(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -1101,9 +1255,14 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 max-w-lg w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                Nutrition Pacing & Details
-              </h3>
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Nutrition Details for {formatDateWithWeekday(selectedDate)}
+                </h3>
+                <span className="text-xs text-slate-400">
+                  {selectedDayMeals.length} meal{selectedDayMeals.length !== 1 ? "s" : ""} recorded
+                </span>
+              </div>
               <button
                 onClick={() => setShowNutritionDetailsModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 flex items-center justify-center cursor-pointer"
@@ -1115,22 +1274,22 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             <div className="space-y-3 text-xs">
               <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-1">
                 <span className="font-extrabold text-emerald-800 dark:text-emerald-300 block">
-                  Metabolic Pacing Status: Optimal
+                  Metabolic Pacing Status: {selectedDayTotals.calories >= targetCalories * 0.9 ? "Target Reached" : "Active Day"}
                 </span>
                 <p className="text-emerald-700 dark:text-emerald-400">
-                  You have logged <strong>{Math.round(totalCalories || 1620)} kcal</strong> today against your target of <strong>{targetCalories} kcal</strong>.
+                  Logged <strong>{Math.round(selectedDayTotals.calories)} kcal</strong> against target of <strong>{targetCalories} kcal</strong>.
                 </p>
               </div>
 
-              {/* Complete Meals List for Today */}
+              {/* Complete Meals List for Selected Day */}
               <div className="space-y-2 pt-2">
                 <span className="font-bold text-slate-700 dark:text-slate-300 block">
-                  Logged Meals ({meals.length})
+                  Logged Meals ({selectedDayMeals.length})
                 </span>
-                {meals.length === 0 ? (
-                  <p className="text-slate-400 italic">No custom meals logged yet today.</p>
+                {selectedDayMeals.length === 0 ? (
+                  <p className="text-slate-400 italic py-4 text-center">No meals logged for this date.</p>
                 ) : (
-                  meals.map((m) => (
+                  selectedDayMeals.map((m) => (
                     <div
                       key={m.id}
                       className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between"
@@ -1275,7 +1434,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
-                  {selectedMealDetail.meal_type}
+                  {selectedMealDetail.meal_type} • {selectedMealDetail.created_at ? formatDate(selectedMealDetail.created_at) : ""}
                 </span>
                 <h3 className="text-base font-black text-slate-900 dark:text-white capitalize">
                   {selectedMealDetail.food_name}
@@ -1351,7 +1510,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   Delete Meal Log?
                 </h3>
                 <p className="text-xs text-slate-400">
-                  This will remove the entry from today's targets.
+                  This will remove the entry from the database and daily targets.
                 </p>
               </div>
             </div>

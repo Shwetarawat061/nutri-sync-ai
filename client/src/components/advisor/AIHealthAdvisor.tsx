@@ -65,7 +65,7 @@ export const AIHealthAdvisor: React.FC<AIHealthAdvisorProps> = ({
   // Initial welcome message
   useEffect(() => {
     if (messages.length === 0) {
-      const name = userProfile?.name ? userProfile.name.split(" ")[0] : "there";
+      const name = userProfile?.name ? String(userProfile.name).trim().split(" ")[0] || "there" : "there";
       const goal = userProfile?.goal || "Hypertrophy & Metabolic Health";
       const isHostel = budgetHostelMode || Boolean(userProfile?.hostel_context);
 
@@ -94,7 +94,7 @@ Keep an airtight jar of roasted chana and sattu powder in your room — 40g of e
         },
       ]);
     }
-  }, [userProfile, budgetHostelMode, totalCalories, totalProtein]);
+  }, [userProfile?.email, budgetHostelMode, totalCalories, totalProtein]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -143,12 +143,12 @@ Keep an airtight jar of roasted chana and sattu powder in your room — 40g of e
       const aiMsg: HealthAdvisorMessage = {
         id: `model-${Date.now()}`,
         role: "model",
-        content: res.reply,
+        content: res?.reply || "I have analyzed your query and updated your metabolic context.",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
-      if (res.suggested_questions && res.suggested_questions.length > 0) {
+      if (res?.suggested_questions && res.suggested_questions.length > 0) {
         setSuggestedQuestions(res.suggested_questions);
       }
     } catch (err: any) {
@@ -170,8 +170,9 @@ Keep an airtight jar of roasted chana and sattu powder in your room — 40g of e
   };
 
   // Render markdown helper (bold, lists, headings) with distinct styles for the 4 core sections
-  const renderFormattedContent = (content: string) => {
-    const lines = content.split("\n");
+  const renderFormattedContent = (content: string | undefined | null) => {
+    const safeContent = typeof content === "string" ? content : (content ? String(content) : "");
+    const lines = safeContent.split("\n");
     return (
       <div className="space-y-2 text-sm leading-relaxed">
         {lines.map((line, idx) => {
@@ -249,8 +250,9 @@ Keep an airtight jar of roasted chana and sattu powder in your room — 40g of e
     );
   };
 
-  const formatBold = (str: string) => {
-    return str.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>');
+  const formatBold = (str: string | undefined | null) => {
+    const safeStr = typeof str === "string" ? str : (str ? String(str) : "");
+    return safeStr.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>');
   };
 
   return (

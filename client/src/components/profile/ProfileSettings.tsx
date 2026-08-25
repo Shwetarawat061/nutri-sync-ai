@@ -31,6 +31,7 @@ import {
   Compass,
   KeyRound,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, EmailDigestResponse } from "../../types";
@@ -56,9 +57,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   // Form states
   const [name, setName] = useState<string>(userProfile?.name || "");
   const [email, setEmail] = useState<string>(userProfile?.email || "");
-  const [age, setAge] = useState<number>(userProfile?.age || 21);
-  const [weight, setWeight] = useState<number>(userProfile?.weight || 68);
-  const [height, setHeight] = useState<number>(userProfile?.height || 172);
+  const [age, setAge] = useState<number | string>(userProfile?.age ?? 21);
+  const [weight, setWeight] = useState<number | string>(userProfile?.weight ?? 68);
+  const [height, setHeight] = useState<number | string>(userProfile?.height ?? 172);
   const [gender, setGender] = useState<string>(userProfile?.gender || "male");
   const [activityLevel, setActivityLevel] = useState<keyof typeof ACTIVITY_MULTIPLIERS>(
     (userProfile?.activity_level as any) || "moderate"
@@ -95,7 +96,14 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
   // Calculated Targets State
   const [targets, setTargets] = useState(() =>
-    calculateMacroTargets(weight, height, age, gender, activityLevel, goal)
+    calculateMacroTargets(
+      Number(userProfile?.weight ?? 68) || 0,
+      Number(userProfile?.height ?? 172) || 0,
+      Number(userProfile?.age ?? 21) || 0,
+      userProfile?.gender || "male",
+      (userProfile?.activity_level as any) || "moderate",
+      userProfile?.goal || "Healthy eating"
+    )
   );
 
   const [saving, setSaving] = useState<boolean>(false);
@@ -107,9 +115,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     if (userProfile) {
       setName(userProfile.name || "");
       setEmail(userProfile.email || "");
-      setAge(userProfile.age || 21);
-      setWeight(userProfile.weight || 68);
-      setHeight(userProfile.height || 172);
+      setAge(userProfile.age ?? 21);
+      setWeight(userProfile.weight ?? 68);
+      setHeight(userProfile.height ?? 172);
       setGender(userProfile.gender || "male");
       setGoal(userProfile.goal || "Healthy eating");
       setDietaryPref(userProfile.dietaryPreference || userProfile.dietary_pref || "Vegetarian");
@@ -119,22 +127,36 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
       setEmailWeeklyRecap(userProfile.email_weekly_recap !== 0);
       setEmailDeficitAlerts(userProfile.email_deficit_alerts !== 0);
       setEmailHostelHacks(userProfile.email_hostel_hacks !== 0);
+
+      const computed = calculateMacroTargets(
+        Number(userProfile.weight ?? 68) || 0,
+        Number(userProfile.height ?? 172) || 0,
+        Number(userProfile.age ?? 21) || 0,
+        userProfile.gender || "male",
+        (userProfile.activity_level as any) || "moderate",
+        userProfile.goal || "Healthy eating"
+      );
+      setTargets(computed);
     }
   }, [userProfile]);
 
   // Re-calculate targets whenever inputs change
   const updateTargets = (
-    newWeight = weight,
-    newHeight = height,
-    newAge = age,
+    newWeight: number | string = weight,
+    newHeight: number | string = height,
+    newAge: number | string = age,
     newGender = gender,
     newActivity = activityLevel,
     newGoal = goal
   ) => {
+    const nw = Number(newWeight) || 0;
+    const nh = Number(newHeight) || 0;
+    const na = Number(newAge) || 0;
+
     const computed = calculateMacroTargets(
-      newWeight,
-      newHeight,
-      newAge,
+      nw,
+      nh,
+      na,
       newGender,
       newActivity,
       newGoal
@@ -142,17 +164,17 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     setTargets(computed);
   };
 
-  const handleWeightChange = (v: number) => {
+  const handleWeightChange = (v: number | string) => {
     setWeight(v);
     updateTargets(v, height, age, gender, activityLevel, goal);
   };
 
-  const handleHeightChange = (v: number) => {
+  const handleHeightChange = (v: number | string) => {
     setHeight(v);
     updateTargets(weight, v, age, gender, activityLevel, goal);
   };
 
-  const handleAgeChange = (v: number) => {
+  const handleAgeChange = (v: number | string) => {
     setAge(v);
     updateTargets(weight, height, v, gender, activityLevel, goal);
   };
@@ -172,7 +194,49 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     updateTargets(weight, height, age, gender, activityLevel, v);
   };
 
-  const bmi = Number((weight / Math.pow(height / 100, 2)).toFixed(1));
+  // Discard all unsaved changes and restore profile to last saved snapshot
+  const handleDiscardChanges = () => {
+    if (userProfile) {
+      setName(userProfile.name || "");
+      setEmail(userProfile.email || "");
+      setAge(userProfile.age ?? 21);
+      setWeight(userProfile.weight ?? 68);
+      setHeight(userProfile.height ?? 172);
+      setGender(userProfile.gender || "male");
+      setGoal(userProfile.goal || "Healthy eating");
+      setDietaryPref(userProfile.dietaryPreference || userProfile.dietary_pref || "Vegetarian");
+      setBudget(userProfile.budget || "medium");
+      setHostelContext(userProfile.hostel_context || "Hostel mess & canteen food");
+      setActivityLevel((userProfile.activity_level as any) || "moderate");
+      setEmailDailyDigest(userProfile.email_daily_digest !== 0);
+      setEmailWeeklyRecap(userProfile.email_weekly_recap !== 0);
+      setEmailDeficitAlerts(userProfile.email_deficit_alerts !== 0);
+      setEmailHostelHacks(userProfile.email_hostel_hacks !== 0);
+
+      const restoredTargets = calculateMacroTargets(
+        Number(userProfile.weight ?? 68) || 0,
+        Number(userProfile.height ?? 172) || 0,
+        Number(userProfile.age ?? 21) || 0,
+        userProfile.gender || "male",
+        (userProfile.activity_level as any) || "moderate",
+        userProfile.goal || "Healthy eating"
+      );
+      setTargets(restoredTargets);
+    } else {
+      setAge(21);
+      setWeight(68);
+      setHeight(172);
+      setTargets(calculateMacroTargets(68, 172, 21, gender, activityLevel, goal));
+    }
+  };
+
+  const numWeight = Number(weight) || 0;
+  const numHeight = Number(height) || 0;
+  const numAge = Number(age) || 0;
+
+  const bmi = (numWeight > 0 && numHeight > 0)
+    ? Number((numWeight / Math.pow(numHeight / 100, 2)).toFixed(1))
+    : 0;
 
   // Save Email Preferences
   const handleToggleEmailPref = async (
@@ -239,9 +303,39 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
   const handleSaveProfile = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!email || !name) {
+
+    const validAge = Number(age);
+    const validWeight = Number(weight);
+    const validHeight = Number(height);
+
+    // Validate that inputs are not zero, empty, or negative
+    const hasZeroOrInvalidBiometrics = (
+      age === "" || isNaN(validAge) || validAge <= 0 ||
+      weight === "" || isNaN(validWeight) || validWeight <= 0 ||
+      height === "" || isNaN(validHeight) || validHeight <= 0
+    );
+
+    const hasZeroOrInvalidTargets = (
+      targets.calories <= 0 ||
+      targets.protein <= 0 ||
+      targets.carbs <= 0 ||
+      targets.fats <= 0
+    );
+
+    if (!email || !String(email).trim() || !name || !String(name).trim()) {
       setErrorMsg("Name and email are required. Please check the Account tab.");
       setActiveTab("account");
+      return;
+    }
+
+    if (hasZeroOrInvalidBiometrics || hasZeroOrInvalidTargets) {
+      // 1. Give user a message that entries cannot be zero
+      setErrorMsg(
+        "Profile entries cannot be zero or empty (Age, Weight, and Height must be greater than 0). Changes have been discarded to prevent saving incorrect data."
+      );
+      // 2. Discard the changes & restore last valid profile
+      handleDiscardChanges();
+      // 3. Do not save incorrect data!
       return;
     }
 
@@ -251,14 +345,14 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
     try {
       const updatedProfile: Partial<UserProfile> & { currentEmail?: string } = {
-        name,
+        name: name.trim(),
         email: email.trim(),
         currentEmail: userProfile?.email,
-        age: Number(age),
-        weight: Number(weight),
-        height: Number(height),
+        age: validAge,
+        weight: validWeight,
+        height: validHeight,
         gender,
-        bmi,
+        bmi: validWeight > 0 && validHeight > 0 ? Number((validWeight / Math.pow(validHeight / 100, 2)).toFixed(1)) : 0,
         bmr: targets.bmr,
         tdee: targets.tdee,
         goal,
@@ -284,6 +378,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     } catch (err: any) {
       console.error("Save profile error:", err);
       setErrorMsg("Failed to update profile: " + err.message);
+      handleDiscardChanges();
     } finally {
       setSaving(false);
     }
@@ -404,8 +499,19 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
           </p>
         </div>
 
-        {/* Global Save Button in Header */}
+        {/* Global Save & Discard Buttons in Header */}
         <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleDiscardChanges}
+            disabled={saving}
+            className="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+            title="Discard unsaved changes and restore previous values"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Discard</span>
+          </button>
+
           <button
             type="button"
             onClick={() => handleSaveProfile()}
@@ -525,21 +631,34 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                     <Scale className="w-4 h-4 text-slate-400" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <span>{bmi}</span>
-                    <span
-                      className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                        bmi >= 18.5 && bmi <= 24.9
-                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
-                          : bmi < 18.5
-                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
-                          : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
-                      }`}
-                    >
-                      {bmi < 18.5 ? "Underweight" : bmi <= 24.9 ? "Optimal (18.5-24.9)" : "Overweight"}
-                    </span>
+                    {bmi > 0 ? (
+                      <>
+                        <span>{bmi}</span>
+                        <span
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                            bmi >= 18.5 && bmi <= 24.9
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                              : bmi < 18.5
+                              ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                              : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                          }`}
+                        >
+                          {bmi < 18.5 ? "Underweight" : bmi <= 24.9 ? "Optimal (18.5-24.9)" : "Overweight"}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-slate-400 dark:text-slate-600">0.0</span>
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                          Zero / Enter Stats
+                        </span>
+                      </>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Calculated from height ({height}cm) & weight ({weight}kg).
+                    {Number(height) > 0 && Number(weight) > 0
+                      ? `Calculated from height (${height}cm) & weight (${weight}kg).`
+                      : "Enter positive height & weight to calculate BMI."}
                   </p>
                 </div>
 
@@ -551,7 +670,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                     <Flame className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-baseline gap-1">
-                    <span>{targets.bmr}</span>
+                    <span>{targets.bmr > 0 ? targets.bmr : 0}</span>
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">kcal/day</span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -567,7 +686,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                     <Zap className="w-4 h-4 text-amber-500" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-baseline gap-1">
-                    <span>{targets.tdee}</span>
+                    <span>{targets.tdee > 0 ? targets.tdee : 0}</span>
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">kcal/day</span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -622,14 +741,22 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Age */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Age (years)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Age (years)</label>
+                      {(Number(age) <= 0 || age === "") && (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Must be &gt; 0</span>
+                      )}
+                    </div>
                     <input
                       type="number"
-                      min={12}
-                      max={110}
                       value={age}
-                      onChange={(e) => handleAgeChange(Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      onChange={(e) => handleAgeChange(e.target.value)}
+                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
+                        Number(age) <= 0 || age === ""
+                          ? "border-amber-500/70 dark:border-amber-500/70"
+                          : "border-slate-300 dark:border-slate-800"
+                      } rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition`}
+                      placeholder="e.g. 21"
                     />
                   </div>
 
@@ -649,28 +776,44 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
                   {/* Weight */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Weight (kg)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Weight (kg)</label>
+                      {(Number(weight) <= 0 || weight === "") && (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Must be &gt; 0</span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       step="0.1"
-                      min={30}
-                      max={250}
                       value={weight}
-                      onChange={(e) => handleWeightChange(Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      onChange={(e) => handleWeightChange(e.target.value)}
+                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
+                        Number(weight) <= 0 || weight === ""
+                          ? "border-amber-500/70 dark:border-amber-500/70"
+                          : "border-slate-300 dark:border-slate-800"
+                      } rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition`}
+                      placeholder="e.g. 68"
                     />
                   </div>
 
                   {/* Height */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Height (cm)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Height (cm)</label>
+                      {(Number(height) <= 0 || height === "") && (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Must be &gt; 0</span>
+                      )}
+                    </div>
                     <input
                       type="number"
-                      min={100}
-                      max={240}
                       value={height}
-                      onChange={(e) => handleHeightChange(Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      onChange={(e) => handleHeightChange(e.target.value)}
+                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
+                        Number(height) <= 0 || height === ""
+                          ? "border-amber-500/70 dark:border-amber-500/70"
+                          : "border-slate-300 dark:border-slate-800"
+                      } rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition`}
+                      placeholder="e.g. 172"
                     />
                   </div>
                 </div>
@@ -712,8 +855,18 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                   </div>
                 </div>
 
-                {/* Save Biometrics Action */}
-                <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+                {/* Save Biometrics Action & Discard */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={handleDiscardChanges}
+                    disabled={saving}
+                    className="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Discard Changes</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => handleSaveProfile()}
@@ -874,7 +1027,17 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
               </div>
 
               {/* Save Dietary Action */}
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleDiscardChanges}
+                  disabled={saving}
+                  className="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Discard Changes</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => handleSaveProfile()}
@@ -1032,12 +1195,14 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-400 via-indigo-500 to-purple-500 p-[2px] shadow-sm">
                     <div className="w-full h-full rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center font-black text-slate-800 dark:text-slate-100 text-base">
                       {name
-                        ? name
+                        ? String(name)
+                            .trim()
                             .split(" ")
+                            .filter(Boolean)
                             .map((n) => n[0])
                             .join("")
                             .slice(0, 2)
-                            .toUpperCase()
+                            .toUpperCase() || "U"
                         : "U"}
                     </div>
                   </div>
@@ -1111,7 +1276,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
                 {/* Session Management Actions */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-                  {onLogout && (
+                  {onLogout ? (
                     <button
                       type="button"
                       onClick={onLogout}
@@ -1121,17 +1286,29 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                       <LogOut className="w-3.5 h-3.5" />
                       <span>Log Out Session</span>
                     </button>
-                  )}
+                  ) : <div />}
 
-                  <button
-                    type="button"
-                    onClick={() => handleSaveProfile()}
-                    disabled={saving}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Account Info</span>
-                  </button>
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={handleDiscardChanges}
+                      disabled={saving}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Discard Changes</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSaveProfile()}
+                      disabled={saving}
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Account Info</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

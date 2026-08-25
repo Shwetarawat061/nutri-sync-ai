@@ -33,24 +33,47 @@ function saveOrUpdateUser(body: any, res: Response) {
     email_hostel_hacks,
   } = body;
 
-  if (!email || !name) {
+  if (!email || !name || !String(name).trim() || !String(email).trim()) {
     return res.status(400).json({ error: "Name and email are required" });
+  }
+
+  const userAge = Number(age);
+  const userWeight = Number(weight);
+  const userHeight = Number(height);
+
+  if (isNaN(userAge) || userAge <= 0 || isNaN(userWeight) || userWeight <= 0 || isNaN(userHeight) || userHeight <= 0) {
+    return res.status(400).json({
+      error: "Profile entries cannot be zero or empty. Age, weight, and height must be valid positive numbers greater than 0."
+    });
+  }
+
+  const userCalTarget = Number(calorie_target);
+  const userProteinTarget = Number(protein_target);
+  const userCarbsTarget = Number(carbs_target);
+  const userFatsTarget = Number(fats_target);
+
+  if (
+    (calorie_target !== undefined && (isNaN(userCalTarget) || userCalTarget <= 0)) ||
+    (protein_target !== undefined && (isNaN(userProteinTarget) || userProteinTarget <= 0)) ||
+    (carbs_target !== undefined && (isNaN(userCarbsTarget) || userCarbsTarget <= 0)) ||
+    (fats_target !== undefined && (isNaN(userFatsTarget) || userFatsTarget <= 0))
+  ) {
+    return res.status(400).json({
+      error: "Nutrition target entries cannot be zero. Calorie, protein, carbs, and fats targets must be greater than 0."
+    });
   }
 
   const effectiveOldEmail = (currentEmail || oldEmail || "").trim().toLowerCase();
   const normalizedNewEmail = email.trim().toLowerCase();
   const dietPref = dietaryPreference || dietary_pref || "Omnivore";
   const userGoal = goal || "Healthy eating";
-  const userAge = Number(age) || 21;
-  const userWeight = Number(weight) || 68;
-  const userHeight = Number(height) || 172;
   const userBmi = Number(bmi) || Number((userWeight / Math.pow(userHeight / 100, 2)).toFixed(1));
   const userBmr = bmr !== undefined && bmr !== null ? Number(bmr) : null;
   const userTdee = tdee !== undefined && tdee !== null ? Number(tdee) : null;
-  const userCalTarget = Number(calorie_target) || 2100;
-  const userProteinTarget = Number(protein_target) || 120;
-  const userCarbsTarget = Number(carbs_target) || 200;
-  const userFatsTarget = Number(fats_target) || 60;
+  const finalCalTarget = userCalTarget > 0 ? userCalTarget : 2100;
+  const finalProteinTarget = userProteinTarget > 0 ? userProteinTarget : 120;
+  const finalCarbsTarget = userCarbsTarget > 0 ? userCarbsTarget : 200;
+  const finalFatsTarget = userFatsTarget > 0 ? userFatsTarget : 60;
   const userBudget = budget || "medium";
   const userHostelContext = hostel_context || "";
   const userGender = gender || "male";
@@ -105,10 +128,10 @@ function saveOrUpdateUser(body: any, res: Response) {
         userGoal,
         dietPref,
         userActivity,
-        userCalTarget,
-        userProteinTarget,
-        userCarbsTarget,
-        userFatsTarget,
+        finalCalTarget,
+        finalProteinTarget,
+        finalCarbsTarget,
+        finalFatsTarget,
         userBudget,
         userHostelContext,
         dailyDig,
@@ -150,10 +173,10 @@ function saveOrUpdateUser(body: any, res: Response) {
       userGoal,
       dietPref,
       userActivity,
-      userCalTarget,
-      userProteinTarget,
-      userCarbsTarget,
-      userFatsTarget,
+      finalCalTarget,
+      finalProteinTarget,
+      finalCarbsTarget,
+      finalFatsTarget,
       userBudget,
       userHostelContext,
       dailyDig,
@@ -183,10 +206,10 @@ function saveOrUpdateUser(body: any, res: Response) {
       userGoal,
       dietPref,
       userActivity,
-      userCalTarget,
-      userProteinTarget,
-      userCarbsTarget,
-      userFatsTarget,
+      finalCalTarget,
+      finalProteinTarget,
+      finalCarbsTarget,
+      finalFatsTarget,
       userBudget,
       userHostelContext,
       dailyDig,
@@ -208,10 +231,10 @@ function saveOrUpdateUser(body: any, res: Response) {
         WHERE LOWER(user_email) = ?
       `).run(
         updatedUser.goal || userGoal,
-        updatedUser.calorie_target || userCalTarget,
-        updatedUser.protein_target || userProteinTarget,
-        updatedUser.carbs_target || userCarbsTarget,
-        updatedUser.fats_target || userFatsTarget,
+        updatedUser.calorie_target || finalCalTarget,
+        updatedUser.protein_target || finalProteinTarget,
+        updatedUser.carbs_target || finalCarbsTarget,
+        updatedUser.fats_target || finalFatsTarget,
         normalizedNewEmail
       );
     } else {
@@ -221,10 +244,10 @@ function saveOrUpdateUser(body: any, res: Response) {
       `).run(
         normalizedNewEmail,
         updatedUser.goal || userGoal,
-        updatedUser.calorie_target || userCalTarget,
-        updatedUser.protein_target || userProteinTarget,
-        updatedUser.carbs_target || userCarbsTarget,
-        updatedUser.fats_target || userFatsTarget
+        updatedUser.calorie_target || finalCalTarget,
+        updatedUser.protein_target || finalProteinTarget,
+        updatedUser.carbs_target || finalCarbsTarget,
+        updatedUser.fats_target || finalFatsTarget
       );
     }
   } catch (targetErr) {

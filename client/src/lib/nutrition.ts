@@ -22,11 +22,14 @@ export interface CalculatedTargets {
  * Women: (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) - 161
  */
 export function calculateBMR(weightKg: number, heightCm: number, ageYears: number, gender: string): number {
-  const base = 10 * weightKg + 6.25 * heightCm - 5 * ageYears;
-  if (gender.toLowerCase() === "male") {
-    return Math.round(base + 5);
+  if (!weightKg || weightKg <= 0 || !heightCm || heightCm <= 0 || !ageYears || ageYears <= 0 || isNaN(weightKg) || isNaN(heightCm) || isNaN(ageYears)) {
+    return 0;
   }
-  return Math.round(base - 161);
+  const base = 10 * weightKg + 6.25 * heightCm - 5 * ageYears;
+  if (gender && gender.toLowerCase() === "male") {
+    return Math.max(0, Math.round(base + 5));
+  }
+  return Math.max(0, Math.round(base - 161));
 }
 
 /**
@@ -41,6 +44,7 @@ export const ACTIVITY_MULTIPLIERS = {
 };
 
 export function calculateTDEE(bmr: number, activityLevel: keyof typeof ACTIVITY_MULTIPLIERS): number {
+  if (!bmr || bmr <= 0) return 0;
   const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] || 1.55;
   return Math.round(bmr * multiplier);
 }
@@ -56,6 +60,17 @@ export function calculateMacroTargets(
   activityLevel: keyof typeof ACTIVITY_MULTIPLIERS = "moderate",
   goal: string = "maintenance"
 ): CalculatedTargets {
+  if (!weightKg || weightKg <= 0 || !heightCm || heightCm <= 0 || !ageYears || ageYears <= 0 || isNaN(weightKg) || isNaN(heightCm) || isNaN(ageYears)) {
+    return {
+      bmr: 0,
+      tdee: 0,
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+    };
+  }
+
   const bmr = calculateBMR(weightKg, heightCm, ageYears, gender);
   const tdee = calculateTDEE(bmr, activityLevel);
 

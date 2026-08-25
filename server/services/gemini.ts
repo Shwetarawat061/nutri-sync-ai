@@ -21,7 +21,7 @@ function isValidApiKey(key: string | undefined): boolean {
   return trimmed.startsWith("AIza") || trimmed.startsWith("AQ") || trimmed.length >= 30;
 }
 
-function getAiClient(): GoogleGenAI | null {
+export function getAiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!isValidApiKey(apiKey)) {
     return null;
@@ -52,7 +52,7 @@ function getAiClient(): GoogleGenAI | null {
   }
 }
 
-function handleAiError(operation: string, err: any) {
+export function handleAiError(operation: string, err: any) {
   const errMsg = err?.message || JSON.stringify(err || "");
   if (
     errMsg.includes("401") ||
@@ -83,7 +83,7 @@ function handleAiError(operation: string, err: any) {
 }
 
 // 🛡️ Multi-model failover utility for maximum uptime & low latency
-async function callGeminiWithFailover(
+export async function callGeminiWithFailover(
   ai: GoogleGenAI,
   params: {
     contents: any;
@@ -151,27 +151,27 @@ export async function scanFoodImage(
   const ai = getAiClient();
 
   // Normalize image data: handle web URLs, data URIs, and raw base64
-  let cleanBase64 = imageBase64;
+  let cleanBase64 = typeof imageBase64 === "string" ? imageBase64 : "";
   let detectedMime = mimeType || "image/jpeg";
 
-  if (imageBase64.startsWith("http://") || imageBase64.startsWith("https://")) {
+  if (cleanBase64.startsWith("http://") || cleanBase64.startsWith("https://")) {
     try {
-      const fetchRes = await fetch(imageBase64);
+      const fetchRes = await fetch(cleanBase64);
       if (fetchRes.ok) {
         const buffer = await fetchRes.arrayBuffer();
         cleanBase64 = Buffer.from(buffer).toString("base64");
         const headerMime = fetchRes.headers.get("content-type");
-        if (headerMime) detectedMime = headerMime.split(";")[0].trim();
+        if (headerMime) detectedMime = String(headerMime).split(";")[0].trim();
       }
     } catch (fetchErr) {
       console.error("Failed to fetch image from URL for AI analysis:", fetchErr);
     }
   } else if (cleanBase64.includes("base64,")) {
     const parts = cleanBase64.split("base64,");
-    cleanBase64 = parts[1];
-    const mimeMatch = parts[0].match(/data:(.*?);/);
+    cleanBase64 = parts[1] || "";
+    const mimeMatch = parts[0]?.match(/data:(.*?);/);
     if (mimeMatch && mimeMatch[1]) {
-      detectedMime = mimeMatch[1].split(";")[0].trim();
+      detectedMime = String(mimeMatch[1]).split(";")[0].trim();
     }
   }
 
@@ -1338,41 +1338,51 @@ export async function consultHealthAdvisor(params: {
   const remCal = Math.max(0, calTarget - calConsumed);
   const remProt = Math.max(0, protTarget - protConsumed);
 
-  const userContext = `
-USER BIOMETRICS & CLINICAL PROFILE:
-- Name: ${userProfile?.name || "User"}
-- Age: ${userProfile?.age || 22} years old | Gender: ${userProfile?.gender || "Not specified"}
-- Weight: ${userProfile?.weight || 70} kg | Height: ${userProfile?.height || 175} cm
-- BMI: ${userProfile?.bmi || 22.8} | BMR: ${userProfile?.bmr || 1650} kcal | TDEE: ${userProfile?.tdee || 2300} kcal
-- Primary Goal: ${userProfile?.goal || "Hypertrophy / Fat Loss / Metabolic Health"}
-- Dietary Preference: ${userProfile?.dietary_pref || userProfile?.dietaryPreference || "Omnivore"}
-- Activity Level: ${userProfile?.activity_level || "moderate"}
-- Daily Targets: ${calTarget} kcal (Protein: ${protTarget}g, Carbs: ${carbsTarget}g, Fats: ${fatsTarget}g)
-- Food Environment: ${budgetHostelMode || userProfile?.hostel_context ? "Hostel Mess / Campus Canteen / Student Budget" : "Home Kitchen / Tiffin Service / Young Professional"}
-- Budget Tier: ${userProfile?.budget || "student/low"}
+  // Retrieve Long-Term Memories from SQLite if email available
+  let longTermMemories: string[] = [];
+  try {
+    if (userProfile?.email) {
+      const { getUserMemories } = await import("./memorySystem.js");
+      const mems = getUserMemories(userProfile.email);
+      longTermMemories = mems.map((m) => `[${m.category.toUpperCase()}]: ${m.memory_value}`);
+    }
+  } catch {
+    // Non-blocking
+  }
 
-TODAY'S ACCUMULATED MACRO TOTALS:
-- Calories Consumed: ${calConsumed} / ${calTarget} kcal (Remaining: ${remCal} kcal)
-- Protein Consumed: ${protConsumed} / ${protTarget} g (Remaining Deficit: ${remProt} g)
-- Carbs Consumed: ${carbsConsumed} / ${carbsTarget} g
-- Fats Consumed: ${fatsConsumed} / ${fatsTarget} g
-- Meals Logged Today: ${JSON.stringify(recentMeals || [])}
+  const userContext = `
+[STATE_TRACKING_VARIABLES]
+- USER_EMAIL: ${userProfile?.email || "anonymous"}
+- CURRENT_WEIGHT: ${userProfile?.weight || 70} kg | HEIGHT: ${userProfile?.height || 175} cm | BMI: ${userProfile?.bmi || 22.8}
+- PRIMARY_GOAL: ${userProfile?.goal || "Hypertrophy / Fat Loss / Metabolic Health"}
+- DIETARY_PREFERENCE: ${userProfile?.dietary_pref || userProfile?.dietaryPreference || "Omnivore"}
+- FOOD_ENVIRONMENT: ${budgetHostelMode || userProfile?.hostel_context ? "Hostel Mess / Campus Canteen / Student Budget" : "Home Kitchen / Tiffin Service"}
+- BUDGET_TIER: ${userProfile?.budget || "student/low"}
+- CALORIE_BUDGET_DAILY: ${calTarget} kcal | PROTEIN_TARGET_DAILY: ${protTarget} g
+- CONSUMED_TODAY: ${calConsumed} kcal | ${protConsumed} g Protein | ${carbsConsumed} g Carbs | ${fatsConsumed} g Fats
+- REMAINING_DEFICIT_TODAY: ${remCal} kcal | ${remProt} g Protein
+- LOGGED_MEALS_COUNT: ${Array.isArray(recentMeals) ? recentMeals.length : 0}
+
+[LONG_TERM_MEMORY_STORE]
+${longTermMemories.length > 0 ? longTermMemories.map((m) => `- ${m}`).join("\n") : "- No prior long-term memories recorded yet. Extract and retain relevant patterns from this session."}
 `;
 
   if (ai) {
     try {
-      const systemInstruction = `You are NutriSync AI, an elite clinical sports nutritionist and pragmatic diet strategist specializing in students, young professionals, and hostel/campus residents.
+      const systemInstruction = `You are NutriSync AI, an elite clinical sports nutritionist with persistent long-term memory and autonomous state-tracking capabilities.
 
-CORE PRINCIPLES:
-1. NO GENERIC FLUFF: Never say "eat a balanced diet," "stay hydrated," or "consult a doctor" unless clinically urgent.
-2. HYPER-SPECIFIC & QUANTIFIED: Always cite exact grams (protein/carbs/fats), approximate calories, and cost-effective local food swaps.
-3. CONTEXT-AWARE: Tailor all advice to the user's specific food environment (hostel mess, canteen, tiffin service, or home cooking) and budget constraint.
-4. ACTIONABLE MACRO HACKS: Give practical workarounds (e.g., adding sattu to milk, paneer bhurji from the mess, boiled egg hacks, roasted chana, soya chunks).
+[STRICT MEMORY SCHEMA & LOG FORMAT]
+1. STATE TRACKING: Actively maintain awareness of the user's running macro deficit, goal trajectory, and hostel/budget parameters.
+2. LONG-TERM MEMORY: Seamlessly reference established preferences, constraints, and past agreed actions from the LONG_TERM_MEMORY_STORE.
+3. CONVERSATIONAL LOG FORMAT: Maintain continuous conversational state, acknowledging past progress and commitments.
+4. NO GENERIC FLUFF: Never say "eat a balanced diet," "stay hydrated," or "consult a doctor" unless clinically urgent.
+5. HYPER-SPECIFIC & QUANTIFIED: Always cite exact grams (protein/carbs/fats), approximate calories, and cost-effective local food swaps.
+6. CONTEXT-AWARE: Tailor all advice to the user's specific food environment (hostel mess, canteen, tiffin service, or home cooking) and budget constraint.
 
 OUTPUT STRUCTURE:
 You MUST structure your reply using these exact 4 sections in Markdown:
 ### Direct Assessment
-[One-sentence verdict on their macro/caloric balance and current pacing]
+[One-sentence verdict on their macro/caloric balance, long-term memory trajectory, and current pacing]
 
 ### Tailored Action Plan
 [2–3 precise meals or food swaps with exact numbers (e.g., "Add 100g paneer = ~18g protein, ~260 kcal" or "3 boiled eggs = 18g protein, 210 kcal")]

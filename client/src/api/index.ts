@@ -120,9 +120,18 @@ export const api = {
     return data.meals || [];
   },
 
-  async getTodayMeals(email: string): Promise<{ meals: MealItem[]; totals: any; count: number }> {
-    const data = await safeFetch<{ meals: MealItem[]; totals: any; count: number }>(`/api/meals/today?email=${encodeURIComponent(email)}`);
-    return { meals: data.meals || [], totals: data.totals, count: data.count || 0 };
+  async getTodayMeals(email: string, date?: string): Promise<{ meals: MealItem[]; totals: any; count: number; date?: string; weekday?: string }> {
+    const url = date
+      ? `/api/meals/today?email=${encodeURIComponent(email)}&date=${encodeURIComponent(date)}`
+      : `/api/meals/today?email=${encodeURIComponent(email)}`;
+    const data = await safeFetch<{ meals: MealItem[]; totals: any; count: number; date?: string; weekday?: string }>(url);
+    return {
+      meals: data.meals || [],
+      totals: data.totals,
+      count: data.count || 0,
+      date: data.date,
+      weekday: data.weekday,
+    };
   },
 
   async getMealById(id: string): Promise<MealItem> {
@@ -353,4 +362,42 @@ export const api = {
       action_summary: data.action_summary,
     };
   },
+
+  // 📊 Weekly Goal Progress & Trends
+  async getWeeklyProgress(email: string, date?: string): Promise<import("../types").WeeklyProgressResponse> {
+    const url = date
+      ? `/api/meals/weekly-progress?email=${encodeURIComponent(email)}&date=${encodeURIComponent(date)}`
+      : `/api/meals/weekly-progress?email=${encodeURIComponent(email)}`;
+    const data = await safeFetch<{ success: boolean; progress: import("../types").WeeklyProgressResponse }>(url);
+    return data.progress;
+  },
+
+  // ⏰ Dynamic Time-Aware Reminders
+  async getTimedReminders(email?: string, hostel?: boolean): Promise<import("../types").TimedReminderItem[]> {
+    const query = new URLSearchParams();
+    if (email) query.set("email", email);
+    if (hostel) query.set("hostel", "true");
+    const data = await safeFetch<{ success: boolean; reminders: import("../types").TimedReminderItem[] }>(
+      `/api/ai/reminders?${query.toString()}`
+    );
+    return data.reminders || [];
+  },
+
+  // 🧠 Long-Term Memories
+  async getUserMemories(email: string): Promise<import("../types").UserMemoryItem[]> {
+    const data = await safeFetch<{ success: boolean; memories: import("../types").UserMemoryItem[] }>(
+      `/api/ai/memories?email=${encodeURIComponent(email)}`
+    );
+    return data.memories || [];
+  },
+
+  async saveUserMemory(payload: { email: string; category: string; key: string; value: string }): Promise<import("../types").UserMemoryItem[]> {
+    const data = await safeFetch<{ success: boolean; memories: import("../types").UserMemoryItem[] }>("/api/ai/memories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return data.memories || [];
+  },
 };
+

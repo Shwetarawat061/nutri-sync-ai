@@ -181,3 +181,59 @@ export interface HealthAdvisorResponse {
   };
 }
 
+export interface WeeklyDayStat {
+  date: string; // YYYY-MM-DD
+  dayName: string; // Mon, Tue, etc.
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  calorieTarget: number;
+  proteinTarget: number;
+  adherenceScore: number;
+  mealsCount: number;
+  status: "perfect" | "on_track" | "under" | "over";
+  isToday: boolean;
+}
+
+export interface WeeklyProgressResponse {
+  weekRange: string;
+  days: WeeklyDayStat[];
+  averageCalories: number;
+  averageProtein: number;
+  averageScore: number;
+  totalMealsLogged: number;
+  streakDays: number;
+  proteinGoalDays: number;
+  calorieGoalDays: number;
+  aiWeeklySummary: string;
+  topImprovement: string;
+  memoryInsights: string[];
+}
+
+export interface TimedReminderItem {
+  id: string;
+  title: string;
+  timeWindow: string;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+  description: string;
+  suggestedAction: string;
+  macroFocus: string;
+  type: "hydration" | "breakfast" | "lunch" | "snack" | "dinner" | "recovery";
+  urgency: "active" | "upcoming" | "past";
+  completed: boolean;
+}
+
+export interface UserMemoryItem {
+  id?: number;
+  category: "preference" | "constraint" | "habit" | "milestone" | "struggle" | string;
+  memory_key: string;
+  memory_value: string;
+  confidence?: string;
+  updated_at?: string;
+}
+
+

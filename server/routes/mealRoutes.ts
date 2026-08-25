@@ -4,7 +4,7 @@ import { MealRow } from "../types.js";
 
 export const mealRoutes = Router();
 
-// GET /api/meals/today - Return today's meals and nutritional totals
+// GET /api/meals/today - Return today's meals and nutritional totals dynamically based on date
 mealRoutes.get("/today", (req: Request, res: Response) => {
   try {
     const email = req.query.email as string;
@@ -12,10 +12,17 @@ mealRoutes.get("/today", (req: Request, res: Response) => {
       return res.status(400).json({ error: "Email query parameter is required" });
     }
 
-    const todayDate = new Date().toISOString().split("T")[0];
+    // Accept client date (YYYY-MM-DD) or fallback to server system date
+    const clientDate = (req.query.date as string) || new Date().toISOString().split("T")[0];
+    
     const meals = db
-      .prepare("SELECT * FROM meals WHERE user_email = ? AND date(created_at) = date(?) ORDER BY created_at DESC")
-      .all(email, todayDate) as MealRow[];
+      .prepare(`
+        SELECT * FROM meals 
+        WHERE user_email = ? 
+          AND (date(created_at) = date(?) OR substr(created_at, 1, 10) = ?)
+        ORDER BY created_at DESC
+      `)
+      .all(email, clientDate, clientDate) as MealRow[];
 
     const totals = meals.reduce(
       (acc, m) => ({
@@ -28,7 +35,17 @@ mealRoutes.get("/today", (req: Request, res: Response) => {
       { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 }
     );
 
-    return res.status(200).json({ success: true, meals, totals, count: meals.length });
+    const dateObj = new Date(`${clientDate}T12:00:00`);
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(dateObj);
+
+    return res.status(200).json({
+      success: true,
+      meals,
+      totals,
+      count: meals.length,
+      date: clientDate,
+      weekday,
+    });
   } catch (error: any) {
     console.error("❌ Error in GET /api/meals/today:", error);
     return res.status(500).json({ error: "Failed to fetch today's meals", details: error.message });
@@ -48,11 +65,16 @@ mealRoutes.get("/", (req: Request, res: Response) => {
 
     if (date) {
       meals = db
-        .prepare("SELECT * FROM meals WHERE user_email = ? AND date(created_at) = date(?) ORDER BY created_at DESC")
-        .all(email, date) as MealRow[];
+        .prepare(`
+          SELECT * FROM meals 
+          WHERE user_email = ? 
+            AND (date(created_at) = date(?) OR substr(created_at, 1, 10) = ?)
+          ORDER BY created_at DESC
+        `)
+        .all(email, date, date) as MealRow[];
     } else {
       meals = db
-        .prepare("SELECT * FROM meals WHERE user_email = ? ORDER BY created_at DESC LIMIT 100")
+        .prepare("SELECT * FROM meals WHERE user_email = ? ORDER BY created_at DESC LIMIT 200")
         .all(email) as MealRow[];
     }
 
@@ -202,3 +224,27 @@ mealRoutes.post("/batch-sync", (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to sync meals", details: error.message });
   }
 });
+
+// GET /api/meals/weekly-progress - Fetch 7-day weekly progress with dynamic Monday-to-Sunday dates and long-term memory analysis
+mealRoutes.get("/weekly-progress", async (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string;
+    const clientDate = req.query.date as string | undefined;
+    if (!email) {
+      return res.status(400).json({ error: "Email query parameter is required" });
+    }
+
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    const { calculateWeeklyProgress } = await import("../services/memorySystem.js");
+    const progress = await calculateWeeklyProgress(email, user, clientDate);
+
+    return res.status(200).json({
+      success: true,
+      progress,
+    });
+  } catch (error: any) {
+    console.error("❌ Error in GET /api/meals/weekly-progress:", error);
+    return res.status(500).json({ error: "Failed to calculate weekly progress", details: error.message });
+  }
+});
+

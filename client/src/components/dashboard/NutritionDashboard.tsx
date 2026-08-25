@@ -17,13 +17,16 @@ import {
   Target,
   Trash2,
   X,
+  Calendar,
 } from "lucide-react";
 import { UserProfile, DailyTotals, MealItem } from "../../types";
 import { NextBestActionCard } from "./NextBestActionCard";
 import { CalorieArcGauge } from "./CalorieArcGauge";
 import { WaterTrackerCard } from "./WaterTrackerCard";
+import { WeeklyGoalProgressCard } from "./WeeklyGoalProgressCard";
+import { UpcomingRemindersCard } from "./UpcomingRemindersCard";
 import { api } from "../../api";
-import { formatDate } from "../../lib/utils";
+import { formatDate, formatDateWithWeekday, formatFullDate } from "../../lib/utils";
 
 interface NutritionDashboardProps {
   userProfile: UserProfile | null;
@@ -131,22 +134,27 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
     return "Good Evening";
   };
 
+  // Dynamic system date
+  const todayFormatted = formatDateWithWeekday(new Date());
+
   return (
     <div id="nutrition-dashboard" className="space-y-6 max-w-6xl mx-auto pb-24 px-1 sm:px-4">
-      {/* Top Header: Avatar & Notification Bell (Gen Z Style) */}
-      <div className="flex items-center justify-between">
+      {/* Top Header: Avatar, Dynamic Date & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {/* User Avatar Circle */}
           <div className="relative">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-400 via-teal-400 to-emerald-400 p-[2px] shadow-sm">
               <div className="w-full h-full rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center font-bold text-slate-800 dark:text-slate-100 text-sm">
                 {userProfile?.name
-                  ? userProfile.name
+                  ? String(userProfile.name)
+                      .trim()
                       .split(" ")
+                      .filter(Boolean)
                       .map((n) => n[0])
                       .join("")
                       .slice(0, 2)
-                      .toUpperCase()
+                      .toUpperCase() || "U"
                   : "U"}
               </div>
             </div>
@@ -154,17 +162,23 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block">
-              {getGreeting()},
-            </span>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                Today
+              </span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-emerald-500" />
+                {todayFormatted}
+              </span>
+            </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {userProfile?.name || "Student Champion"}
+              {getGreeting()}, {userProfile?.name ? String(userProfile.name).trim().split(" ")[0] : "Champion"}
             </h1>
           </div>
         </div>
 
         {/* Action Header Pills */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             id="dash-email-status-pill"
             onClick={onNavigateToProfile}
@@ -420,75 +434,23 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
           </div>
         </div>
 
-        {/* Right: AI Insights & Adherence Card */}
-        <div className="lg:col-span-5 genz-card p-6 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-purple-500/10 text-purple-500 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">AI Health Advisor</h3>
-              </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                Score: {adherenceScore}/100
-              </span>
-            </div>
-
-            {loadingInsights ? (
-              <div className="py-8 text-center text-xs text-slate-400 space-y-2">
-                <div className="w-6 h-6 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto" />
-                <p>Synthesizing metabolic velocity...</p>
-              </div>
-            ) : insights.length > 0 ? (
-              <div className="space-y-3 mt-3">
-                {insights.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2.5"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed">{item}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400 py-6 text-center">
-                Log meals to receive proactive guidance on macro pacing and student hostel hacks.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2 pt-2">
-            {onNavigateToAdvisor && (
-              <button
-                onClick={onNavigateToAdvisor}
-                className="w-full p-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Chat with AI Health Advisor</span>
-                <ChevronRight className="w-4 h-4 ml-auto" />
-              </button>
-            )}
-
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-sky-500/10 to-teal-500/10 border border-sky-500/20 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-sky-500" />
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Weekly Planner
-                </span>
-              </div>
-              <button
-                onClick={onNavigateToDietPlan}
-                className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>Explore Plan</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+        {/* Right: Time-Aware Upcoming Reminders Card */}
+        <div className="lg:col-span-5">
+          <UpcomingRemindersCard
+            userProfile={userProfile}
+            budgetHostelMode={budgetHostelMode}
+            onNavigateToScan={onNavigateToScan}
+            onNavigateToAdvisor={onNavigateToAdvisor}
+          />
         </div>
       </div>
+
+      {/* Tertiary Row: 7-Day Weekly Goal Progress & Long-Term Memory Trends */}
+      <WeeklyGoalProgressCard
+        userProfile={userProfile}
+        onNavigateToScan={onNavigateToScan}
+        onNavigateToAdvisor={onNavigateToAdvisor}
+      />
     </div>
   );
 };
