@@ -21,6 +21,9 @@ try {
 }
 
 export async function startServer() {
+  await connectMongo();
+  await migrateSqliteToMongo();
+
   const app = express();
   const PORT = 3000;
   const clientUrl = process.env.CLIENT_URL || process.env.APP_URL;
