@@ -74,7 +74,7 @@ export async function startServer() {
       limit: 30,
       standardHeaders: "draft-7",
       legacyHeaders: false,
-      keyGenerator: (req) => (req as any).user?.id || (req as any).user?.email || req.ip || "unknown",
+      keyGenerator: (req) => (req as any).user?.id || (req as any).user?.email || "unknown",
       validate: {
         xForwardedForHeader: false,
         forwardedHeader: false,
