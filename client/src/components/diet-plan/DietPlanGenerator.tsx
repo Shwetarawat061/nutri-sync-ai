@@ -59,6 +59,7 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
   const consumedProt = dailyTotals?.protein || 0;
   const remainingCal = Math.max(300, targetCal - consumedCal);
   const remainingProt = Math.max(15, targetProt - consumedProt);
+  const formatGrams = (value: number) => value.toFixed(2);
 
   const handleGeneratePlan = async () => {
     if (!userProfile) return;
@@ -243,7 +244,7 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Logged today: <span className="font-bold text-slate-800 dark:text-slate-100">{consumedCal} kcal</span> & <span className="font-bold text-slate-800 dark:text-slate-100">{consumedProt}g Protein</span>. Remaining: <span className="font-bold text-indigo-600 dark:text-indigo-400">{remainingCal} kcal</span> & <span className="font-bold text-indigo-600 dark:text-indigo-400">{remainingProt}g Protein</span>.
+                  Logged today: <span className="font-bold text-slate-800 dark:text-slate-100">{consumedCal} kcal</span> & <span className="font-bold text-slate-800 dark:text-slate-100">{formatGrams(consumedProt)}g Protein</span>. Remaining: <span className="font-bold text-indigo-600 dark:text-indigo-400">{remainingCal} kcal</span> & <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatGrams(remainingProt)}g Protein</span>.
                 </p>
               </div>
             </div>
@@ -265,7 +266,7 @@ export const DietPlanGenerator: React.FC<DietPlanGeneratorProps> = ({
         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
           <span className="text-xs text-slate-400">
             {useRemainingDeficit
-              ? `Targeting remaining ~${remainingCal} kcal and ~${remainingProt}g protein for today's upcoming meals.`
+              ? `Targeting remaining ~${remainingCal} kcal and ~${formatGrams(remainingProt)}g protein for today's upcoming meals.`
               : `Targeting full daily baseline of ${userProfile?.calorie_target || 2100} kcal.`}
           </span>
 

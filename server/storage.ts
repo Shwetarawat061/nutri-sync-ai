@@ -50,6 +50,10 @@ export interface NormalizedUser {
   lactationStatus?: string | boolean;
   climate?: string;
   timezone?: string;
+  email_daily_digest?: number | boolean;
+  email_weekly_recap?: number | boolean;
+  email_deficit_alerts?: number | boolean;
+  email_hostel_hacks?: number | boolean;
   email_verified: boolean;
   emailVerified: boolean;
   created_at: string;
@@ -136,6 +140,10 @@ function normalizeSqliteUser(row: any): NormalizedUser {
   const lactationStatus = row.lactation_status || "";
   const climate = row.climate || "";
   const timezone = row.timezone || "";
+  const emailDailyDigest = Boolean(row.email_daily_digest ?? 1);
+  const emailWeeklyRecap = Boolean(row.email_weekly_recap ?? 1);
+  const emailDeficitAlerts = Boolean(row.email_deficit_alerts ?? 1);
+  const emailHostelHacks = Boolean(row.email_hostel_hacks ?? 1);
   const emailVerified = Boolean(row.email_verified);
   const createdAt = row.created_at || new Date().toISOString();
   const updatedAt = row.updated_at || createdAt;
@@ -176,6 +184,10 @@ function normalizeSqliteUser(row: any): NormalizedUser {
     lactationStatus,
     climate,
     timezone,
+    email_daily_digest: emailDailyDigest,
+    email_weekly_recap: emailWeeklyRecap,
+    email_deficit_alerts: emailDeficitAlerts,
+    email_hostel_hacks: emailHostelHacks,
     email_verified: emailVerified,
     emailVerified,
     created_at: createdAt,
@@ -200,6 +212,10 @@ function normalizeMongoUser(doc: any): NormalizedUser {
   const lactationStatus = value.lactationStatus || value.lactation_status || "";
   const climate = value.climate || "";
   const timezone = value.timezone || "";
+  const emailDailyDigest = Boolean(value.emailDailyDigest ?? value.email_daily_digest ?? true);
+  const emailWeeklyRecap = Boolean(value.emailWeeklyRecap ?? value.email_weekly_recap ?? true);
+  const emailDeficitAlerts = Boolean(value.emailDeficitAlerts ?? value.email_deficit_alerts ?? true);
+  const emailHostelHacks = Boolean(value.emailHostelHacks ?? value.email_hostel_hacks ?? true);
   const emailVerified = Boolean(value.emailVerified ?? value.email_verified);
   const createdAt = value.createdAt ? new Date(value.createdAt).toISOString() : new Date().toISOString();
   const updatedAt = value.updatedAt ? new Date(value.updatedAt).toISOString() : createdAt;
@@ -240,6 +256,10 @@ function normalizeMongoUser(doc: any): NormalizedUser {
     lactationStatus,
     climate,
     timezone,
+    email_daily_digest: emailDailyDigest,
+    email_weekly_recap: emailWeeklyRecap,
+    email_deficit_alerts: emailDeficitAlerts,
+    email_hostel_hacks: emailHostelHacks,
     email_verified: emailVerified,
     emailVerified,
     created_at: createdAt,
@@ -453,6 +473,16 @@ export const storage = {
       fats_target: u.fats_target || u.fatsTarget,
       budget: u.budget,
       hostel_context: u.hostel_context || u.hostelContext,
+      pregnancy_status: u.pregnancy_status ?? u.pregnancyStatus,
+      pregnancyStatus: u.pregnancyStatus ?? u.pregnancy_status,
+      lactation_status: u.lactation_status ?? u.lactationStatus,
+      lactationStatus: u.lactationStatus ?? u.lactation_status,
+      climate: u.climate,
+      timezone: u.timezone,
+      email_daily_digest: u.email_daily_digest,
+      email_weekly_recap: u.email_weekly_recap,
+      email_deficit_alerts: u.email_deficit_alerts,
+      email_hostel_hacks: u.email_hostel_hacks,
       is_new_user: isNew,
       profile_completed: !isNew,
       email_verified: Boolean(u.email_verified ?? u.emailVerified),
@@ -652,6 +682,13 @@ export const storage = {
       carbs_target: "carbsTarget", carbsTarget: "carbsTarget",
       fats_target: "fatsTarget", fatsTarget: "fatsTarget",
       budget: "budget", hostel_context: "hostelContext", hostelContext: "hostelContext",
+      pregnancy_status: "pregnancyStatus", pregnancyStatus: "pregnancyStatus",
+      lactation_status: "lactationStatus", lactationStatus: "lactationStatus",
+      climate: "climate", timezone: "timezone",
+      email_daily_digest: "emailDailyDigest", emailDailyDigest: "emailDailyDigest",
+      email_weekly_recap: "emailWeeklyRecap", emailWeeklyRecap: "emailWeeklyRecap",
+      email_deficit_alerts: "emailDeficitAlerts", emailDeficitAlerts: "emailDeficitAlerts",
+      email_hostel_hacks: "emailHostelHacks", emailHostelHacks: "emailHostelHacks",
       email_verified: "emailVerified", emailVerified: "emailVerified",
     };
 
@@ -700,6 +737,13 @@ export const storage = {
         carbs_target: "carbs_target", carbsTarget: "carbs_target",
         fats_target: "fats_target", fatsTarget: "fats_target",
         budget: "budget", hostel_context: "hostel_context", hostelContext: "hostel_context",
+        pregnancy_status: "pregnancy_status", pregnancyStatus: "pregnancy_status",
+        lactation_status: "lactation_status", lactationStatus: "lactation_status",
+        climate: "climate", timezone: "timezone",
+        email_daily_digest: "email_daily_digest", emailDailyDigest: "email_daily_digest",
+        email_weekly_recap: "email_weekly_recap", emailWeeklyRecap: "email_weekly_recap",
+        email_deficit_alerts: "email_deficit_alerts", emailDeficitAlerts: "email_deficit_alerts",
+        email_hostel_hacks: "email_hostel_hacks", emailHostelHacks: "email_hostel_hacks",
         email_verified: "email_verified", emailVerified: "email_verified",
       };
 

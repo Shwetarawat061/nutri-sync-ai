@@ -25,6 +25,10 @@ const userSchema = new Schema({
   lactationStatus: { type: String, default: "" },
   climate: { type: String, default: "" },
   timezone: { type: String, default: "" },
+  emailDailyDigest: { type: Boolean, default: true },
+  emailWeeklyRecap: { type: Boolean, default: true },
+  emailDeficitAlerts: { type: Boolean, default: true },
+  emailHostelHacks: { type: Boolean, default: true },
   emailVerified: { type: Boolean, default: false },
 }, { timestamps: true, versionKey: false });
 

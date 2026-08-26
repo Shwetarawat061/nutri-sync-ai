@@ -26,7 +26,8 @@ userRoutes.put("/profile", updateProfile);
 userRoutes.post("/email-preferences", async (req: Request, res: Response) => {
   const user = await getOwner(req);
   if (!user) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
-  return res.status(200).json({ success: true, message: "Email preferences saved successfully", user: storage.toPublicUser(user) });
+  const updated = await storage.updateUser(user, req.body || {});
+  return res.status(200).json({ success: true, message: "Email preferences saved successfully", user: storage.toPublicUser(updated) });
 });
 
 userRoutes.post("/send-verification", async (_req: Request, res: Response) => {
