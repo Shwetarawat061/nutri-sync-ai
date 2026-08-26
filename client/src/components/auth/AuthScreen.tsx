@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowRight, LockKeyhole, Mail, User, AlertCircle } from "lucide-react";
+import { ArrowRight, LockKeyhole, Mail, User, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { NutriSyncLogo } from "../brand/NutriSyncLogo";
 import { UserProfile } from "../../types";
 import { api } from "../../api";
@@ -14,6 +14,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, onBack 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,7 +95,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, onBack 
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Password</span>
             <span className="relative block mt-1">
               <LockKeyhole className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-              <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
+              <input type={showPassword ? "text" : "password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute right-2 top-1.5 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </span>
             {mode === "register" && <span className="text-[10px] text-slate-400 mt-1 block">Use at least 8 characters.</span>}
           </label>
