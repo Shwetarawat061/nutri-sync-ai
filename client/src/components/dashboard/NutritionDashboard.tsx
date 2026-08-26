@@ -236,7 +236,7 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
 
         {/* Right: Water Tracker Bento Card */}
         <div className="lg:col-span-5">
-          <WaterTrackerCard initialLiters={1.75} targetLiters={3.0} />
+          <WaterTrackerCard userProfile={userProfile} />
         </div>
       </div>
 
@@ -350,8 +350,8 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
 
           {/* Delete Confirmation Modal */}
           {mealToDelete && (
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="genz-card bg-white dark:bg-slate-900 max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+              <div className="genz-card bg-white dark:bg-slate-900 max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 my-auto">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0 border border-rose-500/20">
                     <Trash2 className="w-5 h-5" />

@@ -80,14 +80,15 @@ export const AISmartMealLogger: React.FC<AISmartMealLoggerProps> = ({
   };
 
   const handleLogParsedMeal = async () => {
-    if (!parsedResult || !userProfile?.email) return;
+    if (!parsedResult) return;
+    const userEmail = userProfile?.email || localStorage.getItem("user_email") || "guest@nutrisync.app";
 
     setIsSaving(true);
     setErrorMessage(null);
 
     try {
       const newMeal: Partial<MealItem> = {
-        user_email: userProfile.email,
+        user_email: userEmail,
         food_name: parsedResult.food_name,
         calories: parsedResult.calories,
         protein: parsedResult.protein,
@@ -98,6 +99,10 @@ export const AISmartMealLogger: React.FC<AISmartMealLoggerProps> = ({
         metabolic_impact: parsedResult.metabolic_impact,
         nutrition_reasoning: parsedResult.nutrition_reasoning,
         meal_type: parsedResult.meal_type || "Lunch",
+        consumed_at: new Date().toISOString(),
+        consumedAt: new Date().toISOString(),
+        date_status: "exact",
+        dateStatus: "exact",
         created_at: new Date().toISOString(),
       };
 

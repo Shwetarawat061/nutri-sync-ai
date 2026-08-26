@@ -5,7 +5,7 @@ import { UserProfile } from "../../types";
 import { api } from "../../api";
 
 interface AuthScreenProps {
-  onAuthenticated: (user: UserProfile, token: string) => void;
+  onAuthenticated: (user: UserProfile, token: string, isNewAccount?: boolean) => void;
   onBack?: () => void;
 }
 
@@ -27,7 +27,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, onBack 
         : await api.register({ name, email, password });
       localStorage.setItem("nutrisync_auth_token", result.token);
       localStorage.setItem("user_email", result.user.email);
-      onAuthenticated(result.user, result.token);
+      const isNew = Boolean(
+        result.isNewUser ||
+        mode === "register" ||
+        result.user.is_new_user ||
+        !result.user.gender ||
+        result.user.gender === "unspecified"
+      );
+      onAuthenticated(result.user, result.token, isNew);
     } catch (err: any) {
       setError(err.message || "Authentication failed");
     } finally {

@@ -21,6 +21,10 @@ const userSchema = new Schema({
   fatsTarget: { type: Number, default: 60, min: 1 },
   budget: { type: String, default: "medium" },
   hostelContext: { type: String, default: "" },
+  pregnancyStatus: { type: String, default: "" },
+  lactationStatus: { type: String, default: "" },
+  climate: { type: String, default: "" },
+  timezone: { type: String, default: "" },
   emailVerified: { type: Boolean, default: false },
 }, { timestamps: true, versionKey: false });
 

@@ -34,23 +34,36 @@ async function safeFetch<T = any>(url: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const errorMsg = body?.error || body?.details || body?.message || `Request failed with status ${res.status}`;
-    throw Object.assign(new Error(errorMsg), { errorCode: body?.errorCode });
+    const code =
+      body?.errorCode ||
+      body?.code ||
+      (res.status === 401
+        ? "AUTH_REQUIRED"
+        : res.status === 429
+        ? "RATE_LIMITED"
+        : res.status === 413
+        ? "PAYLOAD_TOO_LARGE"
+        : "API_ERROR");
+    const err = new Error(errorMsg);
+    (err as any).errorCode = code;
+    (err as any).status = res.status;
+    throw err;
   }
 
   return body;
 }
 
 export const api = {
-  async register(payload: { name: string; email: string; password: string }): Promise<{ user: UserProfile; token: string }> {
-    return safeFetch<{ user: UserProfile; token: string }>("/api/auth/register", {
+  async register(payload: { name: string; email: string; password: string }): Promise<{ user: UserProfile; token: string; isNewUser?: boolean }> {
+    return safeFetch<{ user: UserProfile; token: string; isNewUser?: boolean }>("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
   },
 
-  async login(payload: { email: string; password: string }): Promise<{ user: UserProfile; token: string }> {
-    return safeFetch<{ user: UserProfile; token: string }>("/api/auth/login", {
+  async login(payload: { email: string; password: string }): Promise<{ user: UserProfile; token: string; isNewUser?: boolean }> {
+    return safeFetch<{ user: UserProfile; token: string; isNewUser?: boolean }>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -186,6 +199,15 @@ export const api = {
     return data.meal;
   },
 
+  async updateMeal(id: string, updates: Partial<MealItem>): Promise<MealItem> {
+    const data = await safeFetch<{ meal: MealItem }>(`/api/meals/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    return data.meal;
+  },
+
   async deleteMeal(id: string): Promise<void> {
     await safeFetch(`/api/meals/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
@@ -211,7 +233,11 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, mimeType, userGoal, userTargets }),
     });
-    if (data.success === false) throw Object.assign(new Error(data.message), { errorCode: data.errorCode });
+    if (data.success === false) {
+      const err = new Error(data.message || "Food analysis failed");
+      (err as any).errorCode = data.errorCode || "AI_UNAVAILABLE";
+      throw err;
+    }
     return data;
   },
 
@@ -437,6 +463,57 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return data.memories || [];
+  },
+
+  // 💧 Personalized Hydration Engine Endpoints
+  async getTodayHydration(timezone?: string): Promise<import("../types").HydrationTodayResponse> {
+    const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return safeFetch<import("../types").HydrationTodayResponse>(`/api/hydration/today?timezone=${encodeURIComponent(tz)}`);
+  },
+
+  async logHydration(payload: {
+    amountMl: number;
+    beverageType?: string;
+    consumedAt?: string;
+    source?: string;
+    notes?: string;
+    timezone?: string;
+  }): Promise<{ success: boolean; entry: import("../types").HydrationEntry; progress: import("../types").HydrationTodayResponse }> {
+    const tz = payload.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return safeFetch<{ success: boolean; entry: import("../types").HydrationEntry; progress: import("../types").HydrationTodayResponse }>(
+      "/api/hydration/log",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, timezone: tz }),
+      }
+    );
+  },
+
+  async deleteHydration(id: string): Promise<{ success: boolean; deletedCount: number }> {
+    return safeFetch<{ success: boolean; deletedCount: number }>(`/api/hydration/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+
+  async getHydrationGoal(): Promise<{ success: boolean; goal: import("../types").HydrationGoalResult }> {
+    return safeFetch<{ success: boolean; goal: import("../types").HydrationGoalResult }>("/api/hydration/goal");
+  },
+
+  async getHydrationHistory(days = 7, timezone?: string): Promise<{ success: boolean; entries: import("../types").HydrationEntry[] }> {
+    const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return safeFetch<{ success: boolean; entries: import("../types").HydrationEntry[] }>(
+      `/api/hydration/history?days=${days}&timezone=${encodeURIComponent(tz)}`
+    );
+  },
+
+  async getHydrationInsight(timezone?: string): Promise<{ success: boolean; insightText: string; source: "gemini" | "deterministic" }> {
+    const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return safeFetch<{ success: boolean; insightText: string; source: "gemini" | "deterministic" }>("/api/hydration/insight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timezone: tz }),
+    });
   },
 };
 

@@ -26,6 +26,7 @@ export const CalorieArcGauge: React.FC<CalorieArcGaugeProps> = ({
 }) => {
   const target = Math.max(1, calorieTarget);
   const remaining = Math.max(0, target - caloriesConsumed);
+  const overTarget = Math.max(0, caloriesConsumed - target);
   const percent = Math.min(100, Math.max(0, (caloriesConsumed / target) * 100));
 
   // Arc Gauge Geometry (Semi-circle from 180deg to 0deg)
@@ -90,12 +91,25 @@ export const CalorieArcGauge: React.FC<CalorieArcGaugeProps> = ({
 
         {/* Center Text Overlay */}
         <div className="absolute inset-x-0 bottom-2 text-center flex flex-col items-center justify-center">
-          <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {remaining.toLocaleString()} <span className="text-lg font-semibold">Kcal</span>
-          </span>
-          <span className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
-            {remaining > 0 ? "Remaining" : "Target Reached"}
-          </span>
+          {overTarget > 0 ? (
+            <>
+              <span className="text-3xl sm:text-4xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">
+                +{overTarget.toLocaleString()} <span className="text-lg font-semibold">Kcal</span>
+              </span>
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider bg-amber-500/10 px-2.5 py-0.5 rounded-full mt-0.5">
+                Over Daily Target
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                {remaining.toLocaleString()} <span className="text-lg font-semibold">Kcal</span>
+              </span>
+              <span className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
+                {remaining === 0 ? "Daily Target Met" : "Calories Left"}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

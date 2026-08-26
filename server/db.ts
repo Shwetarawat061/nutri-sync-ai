@@ -49,11 +49,15 @@ export function initDatabase() {
       carbs REAL NOT NULL,
       fats REAL NOT NULL,
       fiber REAL DEFAULT 0,
+      water_content_ml REAL DEFAULT NULL,
+      water_content_confidence REAL DEFAULT NULL,
       glycemic_index TEXT DEFAULT 'Medium',
       metabolic_impact TEXT,
       nutrition_reasoning TEXT,
       meal_type TEXT NOT NULL,
       image_data TEXT,
+      consumed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      date_status TEXT DEFAULT 'exact',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
     );
@@ -132,6 +136,21 @@ export function initDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_snapshots_user_date ON daily_nutrition_snapshots (user_email, snapshot_date);
+
+    CREATE TABLE IF NOT EXISTS hydration_entries (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      user_id TEXT,
+      amount_ml REAL NOT NULL,
+      beverage_type TEXT NOT NULL DEFAULT 'Water',
+      consumed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      source TEXT DEFAULT 'manual',
+      notes TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_hydration_user_consumed ON hydration_entries (user_email, consumed_at);
   `);
 
   // Run safe migrations for existing tables if budget or hostel_context missing
@@ -143,6 +162,18 @@ export function initDatabase() {
     }
     if (!columnNames.includes("hostel_context")) {
       db.exec("ALTER TABLE users ADD COLUMN hostel_context TEXT DEFAULT ''");
+    }
+    if (!columnNames.includes("pregnancy_status")) {
+      db.exec("ALTER TABLE users ADD COLUMN pregnancy_status TEXT DEFAULT ''");
+    }
+    if (!columnNames.includes("lactation_status")) {
+      db.exec("ALTER TABLE users ADD COLUMN lactation_status TEXT DEFAULT ''");
+    }
+    if (!columnNames.includes("climate")) {
+      db.exec("ALTER TABLE users ADD COLUMN climate TEXT DEFAULT ''");
+    }
+    if (!columnNames.includes("timezone")) {
+      db.exec("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT ''");
     }
     if (!columnNames.includes("email_verified")) {
       db.exec("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0");
@@ -179,5 +210,31 @@ export function initDatabase() {
     console.warn("⚠️ User table migration note:", err);
   }
 
-  console.log("⚡ [Database] SQLite metabolic schema initialized with users, meals, and diet_plans tables.");
+  // Safe migration for meals table (consumed_at, date_status, water_content_ml, water_content_confidence)
+  try {
+    const mealTableInfo = db.prepare("PRAGMA table_info(meals)").all() as Array<{ name: string }>;
+    const mealColNames = mealTableInfo.map((c) => c.name);
+    if (!mealColNames.includes("consumed_at")) {
+      db.exec("ALTER TABLE meals ADD COLUMN consumed_at DATETIME");
+      db.exec("UPDATE meals SET consumed_at = created_at WHERE consumed_at IS NULL");
+      console.log("⚡ [Migration] Migrated existing meals table with consumed_at = created_at");
+    }
+    if (!mealColNames.includes("date_status")) {
+      db.exec("ALTER TABLE meals ADD COLUMN date_status TEXT DEFAULT 'migrated'");
+    }
+    if (!mealColNames.includes("water_content_ml")) {
+      db.exec("ALTER TABLE meals ADD COLUMN water_content_ml REAL DEFAULT NULL");
+    }
+    if (!mealColNames.includes("water_content_confidence")) {
+      db.exec("ALTER TABLE meals ADD COLUMN water_content_confidence REAL DEFAULT NULL");
+    }
+    db.exec("CREATE INDEX IF NOT EXISTS idx_meals_user_consumed ON meals (user_email, consumed_at)");
+  } catch (err) {
+    console.warn("⚠️ Meals table migration note:", err);
+  }
+
+  console.log("⚡ [Database] SQLite metabolic schema initialized with users, meals, hydration, and diet_plans tables.");
 }
+
+// Auto-run schema initialization on module load
+initDatabase();

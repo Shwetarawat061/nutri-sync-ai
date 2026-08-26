@@ -1,6 +1,6 @@
 {
   "name": "Remix: NutriSync",
-  "description": "Personalized AI nutrition decision assistant. Don't just track what you eat. Know what to do next.",
+  "description": "Personalized AI nutrition & hydration decision assistant. Don't just track what you eat. Know what to do next.",
   "requestFramePermissions": [
     "camera"
   ],

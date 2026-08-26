@@ -32,6 +32,7 @@ import {
   KeyRound,
   Trash2,
   RotateCcw,
+  Droplets,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, EmailDigestResponse } from "../../types";
@@ -45,14 +46,24 @@ interface ProfileSettingsProps {
   userProfile: UserProfile | null;
   onProfileUpdated: (updated: UserProfile) => void;
   onLogout?: () => void;
+  isNewUserSetup?: boolean;
+  onNavigateToDashboard?: () => void;
 }
 
 export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   userProfile,
   onProfileUpdated,
   onLogout,
+  isNewUserSetup = false,
+  onNavigateToDashboard,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>("biometrics");
+  const isNewAccount = Boolean(
+    isNewUserSetup ||
+    userProfile?.is_new_user ||
+    !userProfile?.gender ||
+    userProfile?.gender === "unspecified"
+  );
 
   // Form states
   const [name, setName] = useState<string>(userProfile?.name || "");
@@ -71,6 +82,16 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   const [budget, setBudget] = useState<string>(userProfile?.budget || "medium");
   const [hostelContext, setHostelContext] = useState<string>(
     userProfile?.hostel_context || "Hostel mess & canteen food"
+  );
+  const [pregnancyStatus, setPregnancyStatus] = useState<string>(
+    userProfile?.pregnancy_status || userProfile?.pregnancyStatus ? "pregnant" : "none"
+  );
+  const [lactationStatus, setLactationStatus] = useState<string>(
+    userProfile?.lactation_status || userProfile?.lactationStatus ? "lactating" : "none"
+  );
+  const [climate, setClimate] = useState<string>(userProfile?.climate || "temperate");
+  const [timezone, setTimezone] = useState<string>(
+    userProfile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   );
 
   // Email Notification & Integration Preferences
@@ -212,6 +233,10 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
       setEmailWeeklyRecap(userProfile.email_weekly_recap !== 0);
       setEmailDeficitAlerts(userProfile.email_deficit_alerts !== 0);
       setEmailHostelHacks(userProfile.email_hostel_hacks !== 0);
+      setPregnancyStatus(userProfile.pregnancy_status || userProfile.pregnancyStatus ? "pregnant" : "none");
+      setLactationStatus(userProfile.lactation_status || userProfile.lactationStatus ? "lactating" : "none");
+      setClimate(userProfile.climate || "temperate");
+      setTimezone(userProfile.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
 
       const restoredTargets = calculateMacroTargets(
         Number(userProfile.weight ?? 68) || 0,
@@ -369,6 +394,12 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
         email_weekly_recap: emailWeeklyRecap,
         email_deficit_alerts: emailDeficitAlerts,
         email_hostel_hacks: emailHostelHacks,
+        pregnancy_status: pregnancyStatus === "pregnant",
+        pregnancyStatus: pregnancyStatus === "pregnant",
+        lactation_status: lactationStatus === "lactating",
+        lactationStatus: lactationStatus === "lactating",
+        climate,
+        timezone,
       };
 
       const saved = await api.updateUserProfile(updatedProfile);
@@ -533,15 +564,64 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
         </div>
       </div>
 
+      {/* Onboarding & Calibration Guidance Banner for New Accounts */}
+      {isNewAccount && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-5 rounded-3xl bg-gradient-to-br from-indigo-500/10 via-emerald-500/10 to-teal-500/10 border-2 border-emerald-500/30 text-slate-800 dark:text-slate-200 shadow-md relative overflow-hidden"
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-emerald-500 text-slate-950 shrink-0 mt-0.5 shadow-sm">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  Complete Your Profile for Personalized AI Consultation
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500 text-slate-950">
+                    Important
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
+                  Accurate biometrics (age, gender, height, weight, activity level) and dietary preferences enable NutriSync's AI engine to calculate clinical-grade BMR, TDEE, and macro targets — ensuring all health recommendations and metabolic advice are tailored specifically to your body.
+                </p>
+              </div>
+            </div>
+            {onNavigateToDashboard && !isNewAccount && (
+              <button
+                type="button"
+                onClick={onNavigateToDashboard}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 transition shrink-0"
+              >
+                Go to Dashboard
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       {/* Global Alerts */}
       {savedSuccess && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm"
+          className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md"
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>Settings, targets, and metabolic calibration synchronized successfully!</span>
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span>Profile and metabolic targets calibrated successfully! Your AI Health Advisor is now ready.</span>
+          </div>
+          {onNavigateToDashboard && (
+            <button
+              type="button"
+              onClick={onNavigateToDashboard}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shrink-0 transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <span>Enter Dashboard & AI Advisor</span>
+              <Sparkles className="w-3.5 h-3.5" />
+            </button>
+          )}
         </motion.div>
       )}
 
@@ -852,6 +932,68 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Hydration & Climate Calibration */}
+                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Droplets className="w-4 h-4 text-sky-500" />
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      Hydration & Environmental Calibration
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Climate */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Local Climate / Temperature
+                      </label>
+                      <select
+                        value={climate}
+                        onChange={(e) => setClimate(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      >
+                        <option value="temperate">Temperate / Moderate (~20°C / 68°F)</option>
+                        <option value="hot">Hot / Tropical / Humid (&gt;28°C / 82°F)</option>
+                        <option value="cold">Cold / Dry / Winter (&lt;10°C / 50°F)</option>
+                      </select>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Hot climates automatically adjust sweat loss fluid baseline (+350 ml).
+                      </p>
+                    </div>
+
+                    {/* Pregnancy / Lactation (Contextual) */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Pregnancy / Lactation Status
+                      </label>
+                      <select
+                        value={pregnancyStatus === "pregnant" ? "pregnant" : lactationStatus === "lactating" ? "lactating" : "none"}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "pregnant") {
+                            setPregnancyStatus("pregnant");
+                            setLactationStatus("none");
+                          } else if (val === "lactating") {
+                            setPregnancyStatus("none");
+                            setLactationStatus("lactating");
+                          } else {
+                            setPregnancyStatus("none");
+                            setLactationStatus("none");
+                          }
+                        }}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
+                      >
+                        <option value="none">Standard / None</option>
+                        <option value="pregnant">Pregnancy (+300 ml/day total fluid target)</option>
+                        <option value="lactating">Lactation (+1,100 ml/day total fluid target)</option>
+                      </select>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Calibrated to National Academies DRI baseline standards.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1320,8 +1462,8 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
       {/* MODAL: EMAIL DIGEST INBOX PREVIEW                                         */}
       {/* ========================================================================= */}
       {showDigestModal && digestResponse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/60">
               <div className="flex items-center gap-3">

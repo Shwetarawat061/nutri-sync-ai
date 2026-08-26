@@ -1,7 +1,6 @@
 import { NextFunction, Router, Request, Response } from "express";
-import { UserModel } from "../models/User.js";
-import { MealModel } from "../models/Meal.js";
-import { AIAnalysisModel } from "../models/AIAnalysis.js";
+import crypto from "crypto";
+import { storage } from "../storage.js";
 import {
   scanFoodImage,
   generateNextBestAction,
@@ -31,31 +30,70 @@ function validateAiPayload(req: Request, res: Response, next: NextFunction) {
 
 aiRoutes.use(validateAiPayload);
 
-export function validateScanImages(imageBase64: unknown, mimeType: unknown): string | null {
-  const images = Array.isArray(imageBase64) ? imageBase64 : [imageBase64];
-  const mimeTypes = Array.isArray(mimeType) ? mimeType : [mimeType || "image/jpeg"];
-  if (!images.length || images.length > 4 || images.some((image) => typeof image !== "string" || image.length > 12_000_000)) return "The selected image is too large or invalid.";
-  if (mimeTypes.length !== images.length || mimeTypes.some((mime) => typeof mime !== "string" || !/^image\/(jpeg|png|webp|heic|heif)$/i.test(mime))) return "The selected image type is invalid.";
+export function sanitizeMimeType(mime: unknown, dataUrl?: string): string {
+  if (typeof mime === "string" && mime.trim()) {
+    const clean = mime.toLowerCase().split(";")[0].trim();
+    if (clean === "image/jpg" || clean === "image/pjpeg" || clean === "image/jfif") return "image/jpeg";
+    if (clean === "image/x-png") return "image/png";
+    if (clean === "image/heif" || clean === "image/heic-sequence" || clean === "image/heif-sequence") return "image/heic";
+    if (/^image\/[a-z0-9.+_-]+$/i.test(clean)) return clean;
+  }
+  if (dataUrl && typeof dataUrl === "string" && dataUrl.startsWith("data:")) {
+    const match = dataUrl.match(/^data:([^;,]+)/i);
+    if (match && match[1]) {
+      const clean = match[1].toLowerCase().trim();
+      if (clean === "image/jpg" || clean === "image/pjpeg") return "image/jpeg";
+      if (/^image\/[a-z0-9.+_-]+$/i.test(clean)) return clean;
+    }
+  }
+  return "image/jpeg";
+}
+
+export function validateScanImages(imageBase64: unknown, mimeType?: unknown): string | null {
+  const images = Array.isArray(imageBase64) ? imageBase64 : (imageBase64 ? [imageBase64] : []);
+  if (!images.length) return "No image provided. Please capture or upload a meal photo.";
+  if (images.length > 4) return "The selected image is too large or invalid.";
+
+  const mimes = Array.isArray(mimeType) ? mimeType : (mimeType ? [mimeType] : []);
+  for (const m of mimes) {
+    if (typeof m === "string") {
+      const clean = m.toLowerCase().split(";")[0].trim();
+      if (!clean.startsWith("image/")) {
+        return "The selected image type is invalid.";
+      }
+    }
+  }
+
+  for (const img of images) {
+    if (typeof img !== "string" || !img.trim()) return "The selected image is invalid or empty.";
+    if (img.length > 25_000_000) return "The selected image is too large (maximum 20MB).";
+  }
   return null;
 }
 
 async function getOwnedDailyContext(req: Request) {
-  const user = await UserModel.findOne({ _id: req.user!.id, email: req.user!.email });
+  if (!req.user) return null;
+  const user = await storage.findUserByIdOrEmail(req.user.id, req.user.email);
   if (!user) return null;
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const meals = await MealModel.find({ userId: user._id, createdAt: { $gte: start } }).sort({ createdAt: -1 }).limit(100);
+  const meals = await storage.getMeals(user, { startDate: start, limit: 100 });
   const consumed = meals.reduce((totals: any, meal: any) => ({
-    calories: totals.calories + meal.calories,
-    protein: totals.protein + meal.protein,
-    carbs: totals.carbs + meal.carbs,
-    fats: totals.fats + meal.fats,
+    calories: totals.calories + (Number(meal.calories) || 0),
+    protein: totals.protein + (Number(meal.protein) || 0),
+    carbs: totals.carbs + (Number(meal.carbs) || 0),
+    fats: totals.fats + (Number(meal.fats) || 0),
   }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
   return {
     user,
     meals,
     consumed,
-    targets: { calories: user.calorieTarget, protein: user.proteinTarget, carbs: user.carbsTarget, fats: user.fatsTarget },
+    targets: {
+      calories: user.calorieTarget || user.calorie_target,
+      protein: user.proteinTarget || user.protein_target,
+      carbs: user.carbsTarget || user.carbs_target,
+      fats: user.fatsTarget || user.fats_target,
+    },
   };
 }
 
@@ -74,21 +112,19 @@ aiRoutes.post("/scan-food", async (req: Request, res: Response) => {
     });
   };
   try {
-    const user = await UserModel.findOne({ _id: req.user!.id, email: req.user!.email });
+    if (!req.user) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
+    const user = await storage.findUserByIdOrEmail(req.user.id, req.user.email);
     if (!user) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
+    
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
-    const dailyScanCount = await AIAnalysisModel.countDocuments({
-      userId: user._id,
-      analysisType: "food_scan",
-      createdAt: { $gte: dayStart },
-    });
-    if (dailyScanCount >= 5) {
+    const dailyScanCount = await storage.countDailyScans(user, dayStart);
+    if (dailyScanCount >= 30) {
       const result = { success: false, source: "gemini", errorCode: "DAILY_LIMIT_REACHED", message: "You have reached today's scan limit. Please try again tomorrow." } as const;
       logScan(result);
       return res.status(429).json(result);
     }
-    const { imageBase64, mimeType, userGoal, userTargets } = req.body;
+    const { imageBase64, mimeType, userGoal } = req.body;
 
     if (!imageBase64 || (Array.isArray(imageBase64) && imageBase64.length === 0)) {
       const result = { success: false, source: "gemini", errorCode: "IMAGE_INVALID", message: "The selected image could not be analyzed." } as const;
@@ -101,30 +137,32 @@ aiRoutes.post("/scan-food", async (req: Request, res: Response) => {
       logScan(result);
       return res.status(400).json(result);
     }
-    const mimeTypes = Array.isArray(mimeType) ? mimeType : [mimeType || "image/jpeg"];
     const images = Array.isArray(imageBase64) ? imageBase64 : [imageBase64];
+    const rawMimes = Array.isArray(mimeType) ? mimeType : [mimeType];
+    const mimeTypes = images.map((img, idx) => sanitizeMimeType(rawMimes[idx] || rawMimes[0], typeof img === "string" ? img : undefined));
 
-    const imageUrls = await uploadScanImages(images.map((image, index) => ({ data: image, mimeType: mimeTypes[index] || mimeTypes[0] })), String(user._id), requestId);
+    const imageUrls = await uploadScanImages(images.map((image, index) => ({ data: image, mimeType: mimeTypes[index] || mimeTypes[0] })), String(user.id), requestId);
     const result = await scanFoodImage(
-      imageBase64,
+      images,
       mimeTypes,
       user.nutritionGoal || userGoal || "Healthy eating",
       {
-        calories: user.calorieTarget,
-        protein: user.proteinTarget,
-        carbs: user.carbsTarget,
-        fats: user.fatsTarget,
+        calories: user.calorieTarget || user.calorie_target,
+        protein: user.proteinTarget || user.protein_target,
+        carbs: user.carbsTarget || user.carbs_target,
+        fats: user.fatsTarget || user.fats_target,
       }
     );
 
     const scanOutput = result.success ? { ...result, imageUrls } : result;
-    await AIAnalysisModel.create({
-      userId: user._id,
-      analysisType: "food_scan",
-      input: { requestId, imageCount: images.length, userGoal: user.nutritionGoal, targets: { calories: user.calorieTarget, protein: user.proteinTarget, carbs: user.carbsTarget, fats: user.fatsTarget } },
-      output: scanOutput,
-      status: result.success ? "success" : "error",
-    });
+    await storage.recordAiAnalysis(
+      user,
+      "food_scan",
+      { requestId, imageCount: images.length, userGoal: user.nutritionGoal, targets: { calories: user.calorieTarget, protein: user.proteinTarget, carbs: user.carbsTarget, fats: user.fatsTarget } },
+      scanOutput,
+      result.success ? "success" : "error"
+    );
+
     if (!result.success) {
       logScan(result);
       return res.status("errorCode" in result && result.errorCode === "IMAGE_INVALID" ? 400 : 503).json(result);
@@ -151,7 +189,7 @@ aiRoutes.post("/nutrition-insight", async (req: Request, res: Response) => {
     if (!context) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
 
     const result = await generateNutritionInsight({
-      userProfile: { goal: context.user.nutritionGoal, dietaryPreference: context.user.dietaryPreference, hostel_context: context.user.hostelContext },
+      userProfile: { goal: context.user.nutritionGoal || context.user.goal, dietaryPreference: context.user.dietaryPreference || context.user.dietary_pref, hostel_context: context.user.hostelContext || context.user.hostel_context },
       currentMeal: req.body.currentMeal,
       todayNutrition: context.consumed,
       recentMeals: context.meals,
@@ -179,21 +217,20 @@ aiRoutes.post("/next-best-action", async (req: Request, res: Response) => {
     if (!context) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
 
     const result = await generateNextBestAction({
-      userGoal: context.user.nutritionGoal || "Healthy eating",
+      userGoal: context.user.nutritionGoal || context.user.goal || "Healthy eating",
       consumed: context.consumed,
       targets: context.targets,
       recentMeals: context.meals,
       timeOfDay: req.body.timeOfDay || "Current",
-      budgetHostelMode: Boolean(context.user.hostelContext || req.body.budgetHostelMode),
-      hostelMenu: context.user.hostelContext || "",
-      dietaryPreference: context.user.dietaryPreference || "Omnivore",
+      budgetHostelMode: Boolean(context.user.hostelContext || context.user.hostel_context || req.body.budgetHostelMode),
+      hostelMenu: context.user.hostelContext || context.user.hostel_context || "",
+      dietaryPreference: context.user.dietaryPreference || context.user.dietary_pref || "Omnivore",
     });
 
     // Optionally save to recommendations table if user is identifiable
     try {
-      const userEmail = req.user!.email;
-      if (userEmail) {
-        await AIAnalysisModel.create({ userId: req.user!.id, analysisType: "insight", input: req.body, output: result });
+      if (context.user) {
+        await storage.recordAiAnalysis(context.user, "insight", req.body, result);
       }
     } catch {
       // Non-blocking database cache
@@ -201,7 +238,7 @@ aiRoutes.post("/next-best-action", async (req: Request, res: Response) => {
 
     return res.status(200).json({ success: true, nextBestAction: result });
   } catch (error: any) {
-    console.warn("Next-best-action route unavailable");
+    console.warn("Next-best-action route unavailable, using fallback calculation");
     const remProt = Math.max(0, 120 - (req.body?.consumed?.protein || 0));
     return res.status(200).json({
       success: true,
@@ -225,8 +262,6 @@ aiRoutes.post("/recommend-next-meal", async (req: Request, res: Response) => {
     const {
       userProfile,
       nutritionGoal,
-      todayNutrition,
-      recentMeals,
       budget,
       dietaryPreference,
       hostelMenu,
@@ -235,24 +270,23 @@ aiRoutes.post("/recommend-next-meal", async (req: Request, res: Response) => {
 
     const result = await recommendNextMeal({
       userProfile: {
-        goal: context.user.nutritionGoal,
-        dietary_pref: context.user.dietaryPreference,
+        goal: context.user.nutritionGoal || context.user.goal,
+        dietary_pref: context.user.dietaryPreference || context.user.dietary_pref,
         budget: context.user.budget,
-        hostel_context: context.user.hostelContext,
+        hostel_context: context.user.hostelContext || context.user.hostel_context,
       },
-      nutritionGoal: context.user.nutritionGoal || nutritionGoal,
+      nutritionGoal: context.user.nutritionGoal || context.user.goal || nutritionGoal,
       todayNutrition: context.consumed,
       recentMeals: context.meals,
       budget: context.user.budget || budget,
-      dietaryPreference: context.user.dietaryPreference || dietaryPreference,
-      hostelMenu: context.user.hostelContext || hostelMenu,
+      dietaryPreference: context.user.dietaryPreference || context.user.dietary_pref || dietaryPreference,
+      hostelMenu: context.user.hostelContext || context.user.hostel_context || hostelMenu,
       availableFood,
     });
 
     try {
-      const email = req.user!.email;
-      if (email) {
-        await AIAnalysisModel.create({ userId: req.user!.id, analysisType: "insight", input: req.body, output: result });
+      if (context.user) {
+        await storage.recordAiAnalysis(context.user, "insight", req.body, result);
       }
     } catch (dbErr) {
       console.warn("Non-blocking meal recommendation save failed");
@@ -281,7 +315,6 @@ aiRoutes.post("/generate-diet", async (req: Request, res: Response) => {
     const {
       userGoal,
       dietaryPreference,
-      dailyTarget,
       budget,
       isHostelMessMode,
       hostelMenuText,
@@ -289,12 +322,17 @@ aiRoutes.post("/generate-diet", async (req: Request, res: Response) => {
     } = req.body;
 
     const result = await generatePersonalizedDietPlan({
-      userGoal: context.user.nutritionGoal || userGoal || "Healthy eating",
-      dietaryPreference: context.user.dietaryPreference || dietaryPreference || "Omnivore",
-      dailyTarget: { calories: context.user.calorieTarget, protein: context.user.proteinTarget, carbs: context.user.carbsTarget, fats: context.user.fatsTarget },
+      userGoal: context.user.nutritionGoal || context.user.goal || userGoal || "Healthy eating",
+      dietaryPreference: context.user.dietaryPreference || context.user.dietary_pref || dietaryPreference || "Omnivore",
+      dailyTarget: {
+        calories: context.user.calorieTarget || context.user.calorie_target,
+        protein: context.user.proteinTarget || context.user.protein_target,
+        carbs: context.user.carbsTarget || context.user.carbs_target,
+        fats: context.user.fatsTarget || context.user.fats_target
+      },
       budget: context.user.budget || budget || "medium",
-      isHostelMessMode: Boolean(context.user.hostelContext || isHostelMessMode),
-      hostelMenuText: context.user.hostelContext || hostelMenuText || "",
+      isHostelMessMode: Boolean(context.user.hostelContext || context.user.hostel_context || isHostelMessMode),
+      hostelMenuText: context.user.hostelContext || context.user.hostel_context || hostelMenuText || "",
       dislikedFoods: dislikedFoods || "",
     });
 
@@ -315,7 +353,7 @@ aiRoutes.post("/insights", async (req: Request, res: Response) => {
     if (!context) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
 
     const result = await generatePersonalizedInsights({
-      userGoal: context.user.nutritionGoal || "Healthy eating",
+      userGoal: context.user.nutritionGoal || context.user.goal || "Healthy eating",
       consumed: context.consumed,
       targets: context.targets,
       mealsCount: context.meals.length,
@@ -323,7 +361,7 @@ aiRoutes.post("/insights", async (req: Request, res: Response) => {
 
     return res.status(200).json({ success: true, insights: result });
   } catch (error: any) {
-    console.warn("Insights route unavailable");
+    console.warn("Insights route unavailable, using fallback score calculation");
     const protPct = Math.round(((req.body?.consumed?.protein || 0) / (req.body?.targets?.protein || 120)) * 100);
     const calPct = Math.round(((req.body?.consumed?.calories || 0) / (req.body?.targets?.calories || 2100)) * 100);
     return res.status(200).json({
@@ -449,8 +487,8 @@ aiRoutes.get("/reminders", async (req: Request, res: Response) => {
     const isHostelMode = req.query.hostel === "true" || req.query.hostel === "1";
 
     let user = null;
-    if (email) {
-      user = await UserModel.findOne({ _id: req.user!.id, email: req.user!.email });
+    if (email && req.user) {
+      user = await storage.findUserByIdOrEmail(req.user.id, email);
     }
 
     const { getUpcomingReminders } = await import("../services/memorySystem.js");
@@ -506,6 +544,3 @@ aiRoutes.post("/memories", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to save memory", details: error.message });
   }
 });
-
-
-

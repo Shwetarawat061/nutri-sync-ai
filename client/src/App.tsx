@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 import { UserProfile, MealItem, DailyTotals } from "./types";
 import { api } from "./api";
+import { getLocalDateString } from "./lib/utils";
 import { NutriSyncLogo } from "./components/brand/NutriSyncLogo";
 import { StartingScreen } from "./components/welcome/StartingScreen";
 import { Onboarding } from "./components/Onboarding";
@@ -31,15 +32,23 @@ import { ProfileSettings } from "./components/profile/ProfileSettings";
 import { AIHealthAdvisor } from "./components/advisor/AIHealthAdvisor";
 import { AuthScreen } from "./components/auth/AuthScreen";
 
-const getTodayDateString = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+function getMealDateKey(meal: MealItem): string {
+  const ts = meal.consumed_at || meal.consumedAt || meal.created_at;
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts.slice(0, 10);
+    return getLocalDateString(d);
+  } catch {
+    return ts.slice(0, 10);
+  }
+}
 
 export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [onboardingView, setOnboardingView] = useState<"welcome" | "form">("welcome");
   const [showAuth, setShowAuth] = useState<boolean>(false);
+  const [isNewUserSetup, setIsNewUserSetup] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "tracker" | "diet" | "profile" | "advisor">("dashboard");
   const [meals, setMeals] = useState<MealItem[]>([]);
   const [budgetHostelMode, setBudgetHostelMode] = useState<boolean>(() => {
@@ -84,6 +93,16 @@ export default function App() {
             const userMeals = await api.getMeals(profile.email);
             setMeals(userMeals);
 
+            const needsSetup = Boolean(
+              profile.is_new_user ||
+              !profile.gender ||
+              profile.gender === "unspecified"
+            );
+            if (needsSetup) {
+              setIsNewUserSetup(true);
+              setActiveTab("profile");
+            }
+
             // Check if there are legacy localStorage meals to migrate
             const localMealsRaw = localStorage.getItem("nutrisync_meals");
             if (localMealsRaw && userMeals.length === 0) {
@@ -115,9 +134,15 @@ export default function App() {
     initApp();
   }, []);
 
-  // Compute live daily totals from meals
+  const todayDateStr = getLocalDateString();
+
+  const todayMeals = React.useMemo(() => {
+    return meals.filter((m) => getMealDateKey(m) === todayDateStr);
+  }, [meals, todayDateStr]);
+
+  // Compute live daily totals from today's meals ONLY
   const dailyTotals: DailyTotals = React.useMemo(() => {
-    return meals.reduce(
+    return todayMeals.reduce(
       (acc, m) => ({
         calories: acc.calories + (Number(m.calories) || 0),
         protein: acc.protein + (Number(m.protein) || 0),
@@ -127,7 +152,7 @@ export default function App() {
       }),
       { calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0 }
     );
-  }, [meals]);
+  }, [todayMeals]);
 
   // Toast handler
   const triggerToast = (message: string, type: "success" | "error" = "success") => {
@@ -149,15 +174,17 @@ export default function App() {
     await api.logout();
     localStorage.removeItem("nutrisync_last_opened_date");
     setUserProfile(null);
+    setIsNewUserSetup(false);
     setMeals([]);
     setOnboardingView("welcome");
-    setActiveTab("start");
+    setActiveTab("dashboard");
     setShowAuth(false);
     triggerToast("Logged out successfully. Returning to starting page...", "success");
   };
 
   const handleProfileUpdated = (updated: UserProfile) => {
     setUserProfile(updated);
+    setIsNewUserSetup(false);
     if (updated.email) {
       localStorage.setItem("user_email", updated.email);
       // Refresh meals under new email
@@ -167,7 +194,7 @@ export default function App() {
         }
       }).catch((e) => console.warn("Failed to reload meals:", e));
     }
-    triggerToast("Profile & email updated successfully!", "success");
+    triggerToast("Profile & metabolic targets updated successfully!", "success");
   };
 
   if (loading) {
@@ -217,11 +244,28 @@ export default function App() {
     if (showAuth) {
       return (
         <AuthScreen
-          onAuthenticated={(profile) => {
+          onAuthenticated={(profile, token, isNewAccount) => {
             setUserProfile(profile);
-            setActiveTab("dashboard");
             setShowAuth(false);
             setOnboardingView("welcome");
+            const needsSetup = Boolean(
+              isNewAccount ||
+              profile.is_new_user ||
+              !profile.gender ||
+              profile.gender === "unspecified"
+            );
+            if (needsSetup) {
+              setIsNewUserSetup(true);
+              setActiveTab("profile");
+              triggerToast(
+                `Welcome ${profile.name || ""}! Please configure your profile for accurate AI consultation & targets.`,
+                "success"
+              );
+            } else {
+              setIsNewUserSetup(false);
+              setActiveTab("dashboard");
+              triggerToast(`Welcome back, ${profile.name}!`, "success");
+            }
           }}
           onBack={() => setShowAuth(false)}
         />
@@ -232,7 +276,7 @@ export default function App() {
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col justify-center">
         <Onboarding
           onComplete={(profile) => {
-            localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
+            localStorage.setItem("nutrisync_last_opened_date", getLocalDateString());
             setUserProfile(profile);
             setActiveTab("dashboard");
             triggerToast("Profile created successfully!");
@@ -383,7 +427,7 @@ export default function App() {
               <NutritionDashboard
                 userProfile={userProfile}
                 dailyTotals={dailyTotals}
-                meals={meals}
+                meals={todayMeals}
                 budgetHostelMode={budgetHostelMode}
                 onNavigateToScan={() => setActiveTab("scan")}
                 onNavigateToTracker={() => setActiveTab("tracker")}
@@ -405,7 +449,7 @@ export default function App() {
             >
               <AIHealthAdvisor
                 userProfile={userProfile}
-                meals={meals}
+                meals={todayMeals}
                 budgetHostelMode={budgetHostelMode}
                 onNavigateToScan={() => setActiveTab("scan")}
                 onNavigateToDietPlan={() => setActiveTab("diet")}
@@ -468,7 +512,7 @@ export default function App() {
                 onMealLogged={handleMealLogged}
                 onNavigateToTracker={() => setActiveTab("tracker")}
                 dailyTotals={dailyTotals}
-                recentMeals={meals}
+                recentMeals={todayMeals}
               />
             </motion.div>
           )}
@@ -485,6 +529,8 @@ export default function App() {
                 userProfile={userProfile}
                 onProfileUpdated={handleProfileUpdated}
                 onLogout={handleLogout}
+                isNewUserSetup={isNewUserSetup}
+                onNavigateToDashboard={() => setActiveTab("dashboard")}
               />
             </motion.div>
           )}
@@ -494,7 +540,7 @@ export default function App() {
       {/* Floating Bottom Navigation Capsule Dock (Matching Image 1) */}
       <div
         id="bottom-navigation-capsule"
-        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 sm:px-6 py-2.5 rounded-full bg-[#1e293b]/95 dark:bg-[#0f172a]/95 text-white backdrop-blur-2xl shadow-2xl shadow-slate-950/40 border border-slate-700/60 dark:border-slate-800 flex items-center gap-3 sm:gap-6 select-none"
+        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 px-4 sm:px-6 py-2.5 rounded-full bg-[#1e293b]/95 dark:bg-[#0f172a]/95 text-white backdrop-blur-2xl shadow-2xl shadow-slate-950/40 border border-slate-700/60 dark:border-slate-800 flex items-center gap-3 sm:gap-6 select-none"
       >
         {/* Home */}
         <button

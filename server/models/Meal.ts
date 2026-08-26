@@ -9,6 +9,8 @@ const mealSchema = new Schema({
   carbs: { type: Number, required: true, min: 0 },
   fats: { type: Number, required: true, min: 0 },
   fiber: { type: Number, default: 0, min: 0 },
+  waterContentMl: { type: Number, default: null },
+  waterContentConfidence: { type: Number, default: null },
   glycemicIndex: { type: String, enum: ["Low", "Medium", "High"], default: "Medium" },
   metabolicImpact: { type: String, default: "" },
   nutritionReasoning: { type: String, default: "" },
@@ -20,7 +22,10 @@ const mealSchema = new Schema({
   nutrition: { type: Schema.Types.Mixed },
   aiMetadata: { type: Schema.Types.Mixed },
   scanResult: { type: Schema.Types.Mixed },
+  consumedAt: { type: Date, required: true, default: Date.now, index: true },
+  dateStatus: { type: String, enum: ["exact", "migrated", "unknown"], default: "exact" },
 }, { timestamps: true, versionKey: false });
 
+mealSchema.index({ userId: 1, consumedAt: -1 });
 mealSchema.index({ userId: 1, createdAt: -1 });
 export const MealModel: any = mongoose.models.Meal || mongoose.model("Meal", mealSchema);

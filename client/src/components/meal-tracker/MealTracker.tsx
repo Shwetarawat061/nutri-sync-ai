@@ -41,6 +41,18 @@ interface MealTrackerProps {
   onNavigateToScan: () => void;
 }
 
+function getMealDateKey(meal: MealItem): string {
+  const ts = meal.consumed_at || meal.consumedAt || meal.created_at;
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts.slice(0, 10);
+    return getLocalDateString(d);
+  } catch {
+    return ts.slice(0, 10);
+  }
+}
+
 export const MealTracker: React.FC<MealTrackerProps> = ({
   userProfile,
   meals,
@@ -104,7 +116,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
       const dateStr = getLocalDateString(d);
 
       // Filter meals from database for this exact date
-      const dayMeals = meals.filter((m) => m.created_at && m.created_at.startsWith(dateStr));
+      const dayMeals = meals.filter((m) => getMealDateKey(m) === dateStr);
       const dayCals = dayMeals.reduce((sum, m) => sum + (Number(m.calories) || 0), 0);
       const dayProt = dayMeals.reduce((sum, m) => sum + (Number(m.protein) || 0), 0);
       const dayCarbs = dayMeals.reduce((sum, m) => sum + (Number(m.carbs) || 0), 0);
@@ -141,7 +153,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
   // 2. Active Selected Day Meals & Computed Totals
   const selectedDayMeals = useMemo(() => {
-    return meals.filter((m) => m.created_at && m.created_at.startsWith(selectedDate));
+    return meals.filter((m) => getMealDateKey(m) === selectedDate);
   }, [meals, selectedDate]);
 
   const selectedDayTotals = useMemo(() => {
@@ -206,7 +218,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
       // Build ISO timestamp matching chosen manualDate + current time
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-      const mealCreatedAt = `${manualDate}T${timeStr}`;
+      const mealConsumedAt = new Date(`${manualDate}T${timeStr}`).toISOString();
 
       const newMeal: Partial<MealItem> = {
         user_email: userProfile.email,
@@ -222,7 +234,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         nutrition_reasoning: manualAnalysis
           ? `${manualAnalysis.nutrition_reasoning} Portion adjusted to ${Math.round(manualPortionFactor * 100)}% of the AI estimate.`
           : `Logged manually under ${mealType}.`,
-        created_at: mealCreatedAt,
+        consumed_at: mealConsumedAt,
+        consumedAt: mealConsumedAt,
+        date_status: "exact",
+        dateStatus: "exact",
+        created_at: new Date().toISOString(),
       };
 
       const saved = await api.logMeal(newMeal);
@@ -1174,50 +1190,64 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
       {/* Manual Entry Modal */}
       {showManualModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-black text-slate-900 dark:text-white">Log Meal Manually</h3>
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 max-w-lg w-full rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] sm:max-h-[86vh] flex flex-col overflow-hidden my-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-emerald-500" />
+                  Log Meal Manually
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Enter dish name for instant AI analysis or adjust macros manually.
+                </p>
+              </div>
               <button
+                type="button"
                 onClick={() => setShowManualModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center cursor-pointer transition"
+                aria-label="Close modal"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold">
-                {errorMessage}
-              </div>
-            )}
+            {/* Modal Scrollable Form Body */}
+            <form onSubmit={handleManualSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              {errorMessage && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold border border-rose-200 dark:border-rose-900/50">
+                  {errorMessage}
+                </div>
+              )}
 
-            <form onSubmit={handleManualSubmit} className="space-y-3 text-xs">
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                   Dish / Meal Name
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., 2 Roti, Dal, Paneer Bhurji & Curd"
-                  value={foodName}
-                  onChange={(e) => {
-                    setFoodName(e.target.value);
-                    setManualAnalysis(null);
-                    setManualPortionFactor(1);
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={handleManualAnalysis}
-                  disabled={analyzingManualMeal || !foodName.trim()}
-                  className="mt-2 w-full px-3 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {analyzingManualMeal ? "Analyzing nutrition..." : "Analyze with AI"}
-                </button>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., 2 Roti, Dal, Paneer Bhurji & Curd"
+                    value={foodName}
+                    onChange={(e) => {
+                      setFoodName(e.target.value);
+                      setManualAnalysis(null);
+                      setManualPortionFactor(1);
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleManualAnalysis}
+                    disabled={analyzingManualMeal || !foodName.trim()}
+                    className="w-full px-3 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {analyzingManualMeal ? "Analyzing nutrition with AI..." : "Analyze with AI"}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1252,7 +1282,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
               </div>
 
               {manualAnalysis && (
-                <div className="p-3 rounded-2xl bg-sky-50 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-900/50 space-y-3">
+                <div className="p-3.5 rounded-2xl bg-sky-50 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-900/50 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 font-black">
@@ -1263,26 +1293,26 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                         How much did you actually eat? Adjust the portion to update the values below.
                       </p>
                     </div>
-                    <span className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-300 whitespace-nowrap">
+                    <span className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-300 whitespace-nowrap bg-sky-100 dark:bg-sky-900/50 px-2 py-0.5 rounded-md">
                       {Math.round(manualPortionFactor * 100)}% portion
                     </span>
                   </div>
 
                   <div className="grid grid-cols-4 gap-1.5">
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-amber-200/70 dark:border-amber-900/40 px-1.5 py-2 text-center">
+                    <div className="rounded-xl bg-white/90 dark:bg-slate-900/80 border border-amber-200/70 dark:border-amber-900/40 px-1.5 py-2 text-center shadow-xs">
                       <span className="block text-[9px] font-bold uppercase text-amber-600">Calories</span>
                       <span className="text-xs font-black text-slate-800 dark:text-white">{calories || 0}</span>
                       <span className="text-[9px] text-slate-400">kcal</span>
                     </div>
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-rose-200/70 dark:border-rose-900/40 px-1.5 py-2 text-center">
+                    <div className="rounded-xl bg-white/90 dark:bg-slate-900/80 border border-rose-200/70 dark:border-rose-900/40 px-1.5 py-2 text-center shadow-xs">
                       <span className="block text-[9px] font-bold uppercase text-rose-600">Protein</span>
                       <span className="text-xs font-black text-slate-800 dark:text-white">{protein || 0}g</span>
                     </div>
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-sky-200/70 dark:border-sky-900/40 px-1.5 py-2 text-center">
+                    <div className="rounded-xl bg-white/90 dark:bg-slate-900/80 border border-sky-200/70 dark:border-sky-900/40 px-1.5 py-2 text-center shadow-xs">
                       <span className="block text-[9px] font-bold uppercase text-sky-600">Carbs</span>
                       <span className="text-xs font-black text-slate-800 dark:text-white">{carbs || 0}g</span>
                     </div>
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-amber-200/70 dark:border-amber-900/40 px-1.5 py-2 text-center">
+                    <div className="rounded-xl bg-white/90 dark:bg-slate-900/80 border border-amber-200/70 dark:border-amber-900/40 px-1.5 py-2 text-center shadow-xs">
                       <span className="block text-[9px] font-bold uppercase text-amber-600">Fats</span>
                       <span className="text-xs font-black text-slate-800 dark:text-white">{fats || 0}g</span>
                     </div>
@@ -1299,12 +1329,12 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                     aria-label="Adjust meal portion"
                   />
                   <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-                    <span>Half portion</span>
-                    <span>AI estimate</span>
-                    <span>Double portion</span>
+                    <span>Half portion (50%)</span>
+                    <span>AI estimate (100%)</span>
+                    <span>Double portion (200%)</span>
                   </div>
                   {manualAnalysis.nutrition_reasoning && (
-                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-sky-100 dark:border-sky-900/30">
                       {manualAnalysis.nutrition_reasoning}
                     </p>
                   )}
@@ -1358,20 +1388,22 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-2">
+              {/* Sticky / Pinned Action Bar inside modal */}
+              <div className="sticky bottom-0 pt-4 mt-4 pb-1 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowManualModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-500 hover:text-slate-800 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving || analyzingManualMeal}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-md shadow-emerald-600/20 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black transition shadow-lg shadow-emerald-600/25 flex items-center gap-2 cursor-pointer"
                 >
-                  {saving ? "Saving..." : "Save Meal"}
+                  <Check className="w-4 h-4" />
+                  <span>{saving ? "Saving..." : "Approve & Save Meal"}</span>
                 </button>
               </div>
             </form>
@@ -1381,8 +1413,8 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
       {/* Nutrition Details Modal */}
       {showNutritionDetailsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-lg w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 max-w-lg w-full p-5 sm:p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[88vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
@@ -1453,14 +1485,15 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
       {/* All AI Insights Modal */}
       {showAllInsightsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-5 sm:p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[88vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-500" />
                 All AI Health Insights
               </h3>
               <button
+                type="button"
                 onClick={() => setShowAllInsightsModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 flex items-center justify-center cursor-pointer"
               >
@@ -1501,6 +1534,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={() => setShowAllInsightsModal(false)}
               className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
             >
@@ -1512,14 +1546,15 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
       {/* All Reminders Modal */}
       {showAllRemindersModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-5 sm:p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[88vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Bell className="w-4 h-4 text-emerald-500" />
                 Scheduled Health Reminders
               </h3>
               <button
+                type="button"
                 onClick={() => setShowAllRemindersModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 flex items-center justify-center cursor-pointer"
               >
@@ -1547,6 +1582,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={() => setShowAllRemindersModal(false)}
               className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
             >
@@ -1558,8 +1594,8 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
       {/* Selected Meal Detail Modal */}
       {selectedMealDetail && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-5 sm:p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[88vh] overflow-y-auto my-auto">
             <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
@@ -1570,6 +1606,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedMealDetail(null)}
                 className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 flex items-center justify-center cursor-pointer"
               >
@@ -1606,6 +1643,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
             <div className="flex items-center justify-between pt-2">
               <button
+                type="button"
                 onClick={() => {
                   setMealToDelete(selectedMealDetail);
                   setSelectedMealDetail(null);
@@ -1616,6 +1654,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 <span>Delete Entry</span>
               </button>
               <button
+                type="button"
                 onClick={() => setSelectedMealDetail(null)}
                 className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
               >
@@ -1628,8 +1667,8 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
       {/* Delete Confirmation Modal */}
       {mealToDelete && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-3xl space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 my-auto">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5" />

@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test": "tsx --test server/services/gemini.test.ts server/middleware/auth.test.ts server/routes/aiRoutes.test.ts",
+    "test": "tsx --test server/services/gemini.test.ts server/middleware/auth.test.ts server/routes/aiRoutes.test.ts server/services/hydration.test.ts",
     "test:scan": "tsx --test server/services/gemini.test.ts"
   },
   "dependencies": {

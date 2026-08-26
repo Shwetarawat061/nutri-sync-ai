@@ -389,8 +389,8 @@ export const WeeklyGoalProgressCard: React.FC<WeeklyGoalProgressCardProps> = ({
 
       {/* Memory Schema Modal */}
       {showMemoryModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="genz-card bg-white dark:bg-slate-900 max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="genz-card bg-white dark:bg-slate-900 max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Brain className="w-5 h-5 text-indigo-500" />

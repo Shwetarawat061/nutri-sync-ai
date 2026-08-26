@@ -19,6 +19,14 @@ export interface UserProfile {
   fats_target: number;
   budget?: "low" | "medium" | "high" | string;
   hostel_context?: string;
+  pregnancy_status?: string | boolean;
+  pregnancyStatus?: string | boolean;
+  lactation_status?: string | boolean;
+  lactationStatus?: string | boolean;
+  climate?: string;
+  timezone?: string;
+  is_new_user?: boolean;
+  profile_completed?: boolean;
   email_verified?: number | boolean;
   pending_email?: string;
   email_daily_digest?: number | boolean;
@@ -53,6 +61,10 @@ export interface MealItem {
   carbs: number;
   fats: number;
   fiber?: number;
+  water_content_ml?: number | null;
+  waterContentMl?: number | null;
+  water_content_confidence?: number | null;
+  waterContentConfidence?: number | null;
   glycemic_index?: "Low" | "Medium" | "High";
   metabolic_impact?: string;
   nutrition_reasoning?: string;
@@ -63,6 +75,10 @@ export interface MealItem {
   foods?: Array<{ name: string; portion?: string }>;
   nutrition?: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
   ai_metadata?: { source?: string; model?: string; confidence?: number; warnings?: string[] };
+  consumed_at?: string;
+  consumedAt?: string;
+  date_status?: string;
+  dateStatus?: string;
   created_at: string;
 }
 
@@ -73,11 +89,65 @@ export interface FoodScanResponse {
   mealName: string;
   foods: Array<{ name: string; portion?: string }>;
   nutrition: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
+  waterContentMl?: number | null;
+  waterContentConfidence?: number | null;
   confidence: number;
   reasoning: string;
   warnings: string[];
   estimatedWeightG?: number;
   imageUrls?: string[];
+}
+
+export interface HydrationEntry {
+  id: string;
+  user_email?: string;
+  userEmail?: string;
+  amount_ml: number;
+  amountMl: number;
+  beverage_type: "Water" | "Milk" | "Tea" | "Coffee" | "Juice" | "Other" | string;
+  beverageType: "Water" | "Milk" | "Tea" | "Coffee" | "Juice" | "Other" | string;
+  consumed_at: string;
+  consumedAt: string;
+  source?: string;
+  notes?: string;
+  created_at?: string;
+}
+
+export type HydrationStatus = "Good" | "Getting there" | "Needs attention";
+
+export interface HydrationGoalResult {
+  totalWaterGoalMl: number;
+  beverageGoalMl: number;
+  foodWaterEstimateMl: number;
+  explanation: string;
+  contextualFactors: Array<{ factor: string; note: string }>;
+  isSpecialCategory?: "pregnancy" | "lactation" | "standard";
+}
+
+export interface HydrationTodayResponse {
+  success: boolean;
+  date: string;
+  timezone: string;
+  totalWaterGoalMl: number;
+  beverageGoalMl: number;
+  foodWaterEstimateMl: number;
+  consumedFromDrinksMl: number;
+  estimatedFoodWaterMl: number;
+  totalWaterConsumedMl: number;
+  remainingBeverageMl: number;
+  remainingTotalWaterMl: number;
+  hydrationPercentage: number;
+  beveragePercentage: number;
+  totalPercentage: number;
+  status: HydrationStatus;
+  explanation: string;
+  nextBestAction: string;
+  foodWaterTrackingIncomplete: boolean;
+  contextualFactors: Array<{ factor: string; note: string }>;
+  beverageBreakdown: Record<string, number>;
+  entriesCount: number;
+  mealsCount: number;
+  entries: HydrationEntry[];
 }
 
 export interface FoodScanFailure {

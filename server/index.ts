@@ -7,20 +7,36 @@ import { userRoutes } from "./routes/userRoutes.js";
 import { mealRoutes } from "./routes/mealRoutes.js";
 import { aiRoutes } from "./routes/aiRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
+import hydrationRoutes from "./routes/hydrationRoutes.js";
 import { authenticateUser } from "./middleware/auth.js";
 import { connectMongo, migrateSqliteToMongo } from "./mongo.js";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 
-// Initialize DB tables
-initDatabase();
+// Initialize DB tables safely
+try {
+  initDatabase();
+} catch (err) {
+  console.warn("⚠️ SQLite initialization warning:", err);
+}
 
 export async function startServer() {
-  await connectMongo();
-  await migrateSqliteToMongo();
   const app = express();
   const PORT = 3000;
   const clientUrl = process.env.CLIENT_URL || process.env.APP_URL;
+
+  // Enable trust proxy for reverse proxy environment (Cloud Run / NGINX)
+  app.set("trust proxy", 1);
+
+  // Safe MongoDB connection in background / startup without crashing
+  try {
+    const mongo = await connectMongo();
+    if (mongo) {
+      await migrateSqliteToMongo();
+    }
+  } catch (err) {
+    console.warn("⚠️ MongoDB startup connection note:", err);
+  }
 
   app.use(cors({
     origin: (origin, callback) => {
@@ -33,8 +49,8 @@ export async function startServer() {
   }));
 
   // Keep JSON and image payloads bounded to reduce memory and abuse risk.
-  app.use(express.json({ limit: "12mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "12mb" }));
+  app.use(express.json({ limit: "25mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
   // API Health Check
   app.get("/api/health", (req, res) => {
@@ -46,13 +62,25 @@ export async function startServer() {
   // API Routes
   app.use("/api/user", authenticateUser, userRoutes);
   app.use("/api/meals", authenticateUser, mealRoutes);
-  app.use("/api/ai", authenticateUser, rateLimit({
-    windowMs: 60 * 1000,
-    limit: 30,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
-    message: { error: "Too many AI requests. Please try again later.", code: "AI_RATE_LIMITED" },
-  }), aiRoutes);
+  app.use("/api/hydration", authenticateUser, hydrationRoutes);
+  app.use(
+    "/api/ai",
+    authenticateUser,
+    rateLimit({
+      windowMs: 60 * 1000,
+      limit: 30,
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+      keyGenerator: (req) => (req as any).user?.id || (req as any).user?.email || req.ip || "unknown",
+      validate: {
+        xForwardedForHeader: false,
+        forwardedHeader: false,
+        trustProxy: false,
+      },
+      message: { error: "Too many AI requests. Please try again later.", code: "AI_RATE_LIMITED" },
+    }),
+    aiRoutes
+  );
 
   // Vite middleware for development vs static build for production
   if (process.env.NODE_ENV !== "production") {
