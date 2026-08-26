@@ -6,13 +6,19 @@ import {
   generateHydrationInsight,
   HydrationUserProfile,
 } from "../services/hydrationService.js";
+import { getDayBoundariesUTC } from "../utils/dateUtils.js";
 
 const router = Router();
+
+async function getOwner(req: any) {
+  if (!req.user) return null;
+  return storage.findUserByIdOrEmail(req.user.id, req.user.email);
+}
 
 // GET /api/hydration/goal
 router.get("/goal", async (req: any, res) => {
   try {
-    const user = req.user;
+    const user = await getOwner(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -46,7 +52,7 @@ router.get("/goal", async (req: any, res) => {
 // GET /api/hydration/today
 router.get("/today", async (req: any, res) => {
   try {
-    const user = req.user;
+    const user = await getOwner(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -108,7 +114,7 @@ router.get("/today", async (req: any, res) => {
 // POST /api/hydration/log (and /api/hydration/entries)
 async function handleLogHydration(req: any, res: any) {
   try {
-    const user = req.user;
+    const user = await getOwner(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -192,7 +198,7 @@ router.post("/entries", handleLogHydration);
 // GET /api/hydration/history
 router.get("/history", async (req: any, res) => {
   try {
-    const user = req.user;
+    const user = await getOwner(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -205,8 +211,9 @@ router.get("/history", async (req: any, res) => {
     let endDate: Date | undefined;
 
     if (dateQuery) {
-      startDate = new Date(`${dateQuery}T00:00:00.000Z`);
-      endDate = new Date(`${dateQuery}T23:59:59.999Z`);
+      const boundaries = getDayBoundariesUTC(dateQuery, timezone);
+      startDate = boundaries.startUTC;
+      endDate = boundaries.endUTC;
     } else {
       const now = new Date();
       startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -232,7 +239,7 @@ router.get("/history", async (req: any, res) => {
 // DELETE /api/hydration/:id
 router.delete("/:id", async (req: any, res) => {
   try {
-    const user = req.user;
+    const user = await getOwner(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -261,7 +268,7 @@ router.delete("/:id", async (req: any, res) => {
 // POST /api/hydration/insight
 router.post("/insight", async (req: any, res) => {
   try {
-    const user = req.user;
+    const user = await getOwner(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }

@@ -61,7 +61,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
     try {
       setLoading(true);
       setErrorMsg(null);
-      const res = await api.getTodayHydration();
+      const res = await api.getTodayHydration(userProfile?.timezone);
       setData(res);
       if (res.explanation) {
         setInsightText(`${res.explanation} ${res.nextBestAction}`);
@@ -114,6 +114,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
         amountMl,
         beverageType: bevType,
         consumedAt: new Date().toISOString(),
+        timezone: userProfile?.timezone,
       });
       if (res.progress) {
         setData(res.progress);
