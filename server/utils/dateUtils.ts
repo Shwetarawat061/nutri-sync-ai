@@ -38,7 +38,7 @@ export function getTodayDateString(timezone = "Asia/Kolkata", dateObj: Date = ne
  * returns exact UTC Date objects for the start of that day (00:00:00.000 local)
  * and the start of the next day (00:00:00.000 local tomorrow).
  */
-export function getDayBoundariesUTC(dateStr: string, timezone = "Asia/Kolkata"): { startUTC: Date; endUTC: Date } {
+export function getDayBoundariesUTC(dateStr: string, timezone = "Asia/Kolkata"): { startUTC: Date; endUTC: Date; localDateString: string; timezone: string } {
   const cleanDate = (dateStr || "").trim().slice(0, 10);
   const parts = cleanDate.split("-");
   const year = parseInt(parts[0], 10);
@@ -50,7 +50,7 @@ export function getDayBoundariesUTC(dateStr: string, timezone = "Asia/Kolkata"):
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
-    return { startUTC: start, endUTC: end };
+    return { startUTC: start, endUTC: end, localDateString: cleanDate, timezone };
   }
 
   // Find the exact UTC offset for this specific year-month-day in this timezone
@@ -127,6 +127,10 @@ export function getDayBoundariesUTC(dateStr: string, timezone = "Asia/Kolkata"):
   const endUTC = new Date(endMs);
 
   return { startUTC, endUTC, localDateString: dateStr, timezone };
+}
+
+export function getLocalDateStringFromDate(date: Date | string | number, timezone = "Asia/Kolkata"): string {
+  return getTodayDateString(timezone, new Date(date));
 }
 
 /**

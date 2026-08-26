@@ -165,8 +165,8 @@ export const api = {
   // Meal Logs Endpoints
   async getMeals(email: string, date?: string): Promise<MealItem[]> {
     const url = date
-      ? `/api/meals?email=${encodeURIComponent(email)}&date=${encodeURIComponent(date)}`
-      : `/api/meals?email=${encodeURIComponent(email)}`;
+      ? `/api/meals?date=${encodeURIComponent(date)}`
+      : `/api/meals`;
     const data = await safeFetch<{ meals: MealItem[] }>(url);
     return data.meals || [];
   },

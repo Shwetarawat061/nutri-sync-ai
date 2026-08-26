@@ -15,6 +15,7 @@ const mealSchema = new Schema({
   metabolicImpact: { type: String, default: "" },
   nutritionReasoning: { type: String, default: "" },
   mealType: { type: String, required: true, default: "Snack" },
+    quantity: { type: Number, default: 1, min: 0 },
   imageData: { type: String },
   imageUrl: { type: String, trim: true },
   imageUrls: { type: [String], default: [] },
@@ -23,6 +24,7 @@ const mealSchema = new Schema({
   aiMetadata: { type: Schema.Types.Mixed },
   scanResult: { type: Schema.Types.Mixed },
   consumedAt: { type: Date, required: true, default: Date.now, index: true },
+    date: { type: Date, required: true, default: Date.now, index: true },
   dateStatus: { type: String, enum: ["exact", "migrated", "unknown"], default: "exact" },
 }, { timestamps: true, versionKey: false });
 

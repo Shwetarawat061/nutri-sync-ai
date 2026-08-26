@@ -41,13 +41,15 @@ interface MealTrackerProps {
   onNavigateToScan: () => void;
 }
 
-function getMealDateKey(meal: MealItem): string {
+function getMealDateKey(meal: MealItem, timezone?: string): string {
   const ts = meal.consumed_at || meal.consumedAt || meal.created_at;
   if (!ts) return "";
   try {
     const d = new Date(ts);
     if (isNaN(d.getTime())) return ts.slice(0, 10);
-    return getLocalDateString(d);
+    return timezone
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+      : getLocalDateString(d);
   } catch {
     return ts.slice(0, 10);
   }
@@ -72,8 +74,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
   const [weekFilter, setWeekFilter] = useState<string>("This Week");
 
   // Dynamic system dates
-  const todayDateStr = useMemo(() => getLocalDateString(), []);
-  const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString());
+  const timezone = userProfile?.timezone;
+  const todayDateStr = useMemo(() => timezone
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+    : getLocalDateString(), [timezone]);
+  const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
 
   // Form states for manual entry
   const [foodName, setFoodName] = useState<string>("");
@@ -116,7 +121,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
       const dateStr = getLocalDateString(d);
 
       // Filter meals from database for this exact date
-      const dayMeals = meals.filter((m) => getMealDateKey(m) === dateStr);
+      const dayMeals = meals.filter((m) => getMealDateKey(m, timezone) === dateStr);
       const dayCals = dayMeals.reduce((sum, m) => sum + (Number(m.calories) || 0), 0);
       const dayProt = dayMeals.reduce((sum, m) => sum + (Number(m.protein) || 0), 0);
       const dayCarbs = dayMeals.reduce((sum, m) => sum + (Number(m.carbs) || 0), 0);
@@ -141,7 +146,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         label: isToday ? "Today" : undefined,
       };
     });
-  }, [weekFilter, meals, selectedDate, todayDateStr, targetCalories]);
+  }, [weekFilter, meals, selectedDate, todayDateStr, targetCalories, timezone]);
 
   // Average weekly progress
   const weeklyAveragePct = useMemo(() => {
@@ -153,8 +158,8 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
 
   // 2. Active Selected Day Meals & Computed Totals
   const selectedDayMeals = useMemo(() => {
-    return meals.filter((m) => getMealDateKey(m) === selectedDate);
-  }, [meals, selectedDate]);
+    return meals.filter((m) => getMealDateKey(m, timezone) === selectedDate);
+  }, [meals, selectedDate, timezone]);
 
   const selectedDayTotals = useMemo(() => {
     return selectedDayMeals.reduce(

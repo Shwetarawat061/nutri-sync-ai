@@ -32,13 +32,15 @@ import { ProfileSettings } from "./components/profile/ProfileSettings";
 import { AIHealthAdvisor } from "./components/advisor/AIHealthAdvisor";
 import { AuthScreen } from "./components/auth/AuthScreen";
 
-function getMealDateKey(meal: MealItem): string {
+function getMealDateKey(meal: MealItem, timezone?: string): string {
   const ts = meal.consumed_at || meal.consumedAt || meal.created_at;
   if (!ts) return "";
   try {
     const d = new Date(ts);
     if (isNaN(d.getTime())) return ts.slice(0, 10);
-    return getLocalDateString(d);
+    return timezone
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+      : getLocalDateString(d);
   } catch {
     return ts.slice(0, 10);
   }
@@ -134,11 +136,13 @@ export default function App() {
     initApp();
   }, []);
 
-  const todayDateStr = getLocalDateString();
+  const todayDateStr = userProfile?.timezone
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: userProfile.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+    : getLocalDateString();
 
   const todayMeals = React.useMemo(() => {
-    return meals.filter((m) => getMealDateKey(m) === todayDateStr);
-  }, [meals, todayDateStr]);
+    return meals.filter((m) => getMealDateKey(m, userProfile?.timezone) === todayDateStr);
+  }, [meals, todayDateStr, userProfile?.timezone]);
 
   // Compute live daily totals from today's meals ONLY
   const dailyTotals: DailyTotals = React.useMemo(() => {
@@ -244,8 +248,10 @@ export default function App() {
     if (showAuth) {
       return (
         <AuthScreen
-          onAuthenticated={(profile, token, isNewAccount) => {
+          onAuthenticated={async (profile, token, isNewAccount) => {
             setUserProfile(profile);
+            const userMeals = await api.getMeals(profile.email);
+            setMeals(userMeals);
             setShowAuth(false);
             setOnboardingView("welcome");
             const needsSetup = Boolean(

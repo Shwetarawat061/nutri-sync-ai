@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { storage } from "../storage.js";
+import { getTodayDateString } from "../utils/dateUtils.js";
 
 export const mealRoutes = Router();
 
@@ -12,7 +13,7 @@ mealRoutes.get("/today", async (req: Request, res: Response) => {
   try {
     const user = await getOwner(req);
     if (!user) return res.status(401).json({ error: "Authenticated user not found", code: "AUTH_INVALID" });
-    const date = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+    const date = (req.query.date as string) || getTodayDateString(user.timezone || "Asia/Kolkata");
     const meals = await storage.getMeals(user, { date });
     const mapped = meals.map(storage.toPublicMeal);
     const totals = mapped.reduce((acc: any, meal: any) => ({

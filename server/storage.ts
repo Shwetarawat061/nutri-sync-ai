@@ -86,6 +86,8 @@ export interface NormalizedMeal {
   nutritionReasoning: string;
   meal_type: string;
   mealType: string;
+    quantity?: number;
+    date?: string;
   image_data?: string;
   imageData?: string;
   image_url?: string;
@@ -328,6 +330,8 @@ function normalizeSqliteMeal(row: any): NormalizedMeal {
     nutritionReasoning: row.nutrition_reasoning || "",
     meal_type: row.meal_type || "Snack",
     mealType: row.meal_type || "Snack",
+    quantity: Number(row.quantity) || 1,
+    date: consumedAt,
     image_data: row.image_data,
     imageData: row.image_data,
     image_url: row.image_url,
@@ -350,7 +354,9 @@ function normalizeSqliteMeal(row: any): NormalizedMeal {
 function normalizeMongoMeal(doc: any): NormalizedMeal {
   const value = doc.toObject ? doc.toObject() : doc;
   const createdAt = value.createdAt ? new Date(value.createdAt).toISOString() : new Date().toISOString();
-  const consumedAt = value.consumedAt ? new Date(value.consumedAt).toISOString() : (value.consumed_at ? new Date(value.consumed_at).toISOString() : createdAt);
+  const consumedAt = value.consumedAt
+    ? new Date(value.consumedAt).toISOString()
+    : (value.date ? new Date(value.date).toISOString() : (value.consumed_at ? new Date(value.consumed_at).toISOString() : createdAt));
   const dateStatus = value.dateStatus || value.date_status || "exact";
   const imageUrls = value.imageUrls || (value.imageData ? [value.imageData] : []);
   const waterContentMl = value.waterContentMl !== null && value.waterContentMl !== undefined ? Number(value.waterContentMl) : (value.water_content_ml !== null && value.water_content_ml !== undefined ? Number(value.water_content_ml) : null);
@@ -380,6 +386,8 @@ function normalizeMongoMeal(doc: any): NormalizedMeal {
     nutritionReasoning: value.nutritionReasoning || value.nutrition_reasoning || "",
     meal_type: value.mealType || value.meal_type || "Snack",
     mealType: value.mealType || value.meal_type || "Snack",
+    quantity: Number(value.quantity) || 1,
+    date: consumedAt,
     image_data: value.imageData || value.image_data,
     imageData: value.imageData || value.image_data,
     image_url: value.imageUrl || value.image_url,
@@ -512,6 +520,8 @@ export const storage = {
       metabolic_impact: m.metabolic_impact || m.metabolicImpact,
       nutrition_reasoning: m.nutrition_reasoning || m.nutritionReasoning,
       meal_type: m.meal_type || m.mealType,
+      quantity: Number(m.quantity) || 1,
+      date: consumedAt,
       image_url: m.image_url || m.imageUrl,
       image_urls: m.image_urls || m.imageUrls || (m.image_data ? [m.image_data] : []),
       foods: m.foods || [],
@@ -605,10 +615,13 @@ export const storage = {
     name: string;
     email: string;
     passwordHash?: string;
+    password?: string;
     age?: number;
     weight?: number;
     height?: number;
     gender?: string;
+    calorie_target?: number;
+    protein_target?: number;
   }): Promise<NormalizedUser> {
     const normalizedEmail = String(data.email).trim().toLowerCase();
     const age = data.age || 18;
@@ -851,6 +864,7 @@ export const storage = {
     const metabolicImpact = mealData.metabolic_impact || mealData.metabolicImpact || "";
     const nutritionReasoning = mealData.nutrition_reasoning || mealData.nutritionReasoning || "";
     const mealType = mealData.meal_type || mealData.mealType || "Snack";
+      const quantity = Math.max(0, Number(mealData.quantity) || 1);
     const imageUrl = mealData.image_url || mealData.imageUrl;
     const imageUrls = mealData.image_urls || mealData.imageUrls || (mealData.image_data ? [mealData.image_data] : []);
     const imageData = mealData.image_data || mealData.imageData || (imageUrls.length ? imageUrls[0] : undefined);
@@ -883,6 +897,8 @@ export const storage = {
           metabolicImpact,
           nutritionReasoning,
           mealType,
+                    quantity,
+                    date: consumedAt,
           imageUrl,
           imageUrls,
           imageData,
@@ -948,7 +964,9 @@ export const storage = {
     });
   },
 
-  async updateMeal(id: string, user: NormalizedUser, updates: any): Promise<NormalizedMeal | null> {
+  async updateMeal(idOrUser: string | NormalizedUser, userOrId: NormalizedUser | string, updates: any): Promise<NormalizedMeal | null> {
+    const id = typeof idOrUser === "string" ? idOrUser : userOrId as string;
+    const user = typeof idOrUser === "string" ? userOrId as NormalizedUser : idOrUser;
     const foodName = updates.food_name || updates.foodName;
     const calories = updates.calories !== undefined ? Math.max(0, Math.round(Number(updates.calories) || 0)) : undefined;
     const protein = updates.protein !== undefined ? Math.max(0, Math.round((Number(updates.protein) || 0) * 10) / 10) : undefined;
@@ -975,7 +993,10 @@ export const storage = {
         if (waterContentMl !== undefined) mongoUpdates.waterContentMl = waterContentMl;
         if (waterContentConfidence !== undefined) mongoUpdates.waterContentConfidence = waterContentConfidence;
         if (mealType !== undefined) mongoUpdates.mealType = mealType;
-        if (consumedAt !== undefined) mongoUpdates.consumedAt = consumedAt;
+        if (consumedAt !== undefined) {
+          mongoUpdates.consumedAt = consumedAt;
+          mongoUpdates.date = consumedAt;
+        }
         if (dateStatus !== undefined) mongoUpdates.dateStatus = dateStatus;
         mongoUpdates.updatedAt = new Date();
 
