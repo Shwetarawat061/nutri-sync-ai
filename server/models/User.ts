@@ -1,0 +1,27 @@
+import mongoose, { Schema } from "mongoose";
+
+const userSchema = new Schema({
+  legacyId: { type: Number, index: true, sparse: true },
+  name: { type: String, required: true, trim: true, maxlength: 120 },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+  passwordHash: { type: String, select: false },
+  age: { type: Number, required: true, min: 1, max: 130 },
+  gender: { type: String, required: true, trim: true },
+  height: { type: Number, required: true, min: 1 },
+  weight: { type: Number, required: true, min: 1 },
+  activityLevel: { type: String, default: "moderate" },
+  nutritionGoal: { type: String, default: "Healthy eating" },
+  dietaryPreference: { type: String, default: "Omnivore" },
+  bmi: Number,
+  bmr: Number,
+  tdee: Number,
+  calorieTarget: { type: Number, default: 2100, min: 1 },
+  proteinTarget: { type: Number, default: 120, min: 1 },
+  carbsTarget: { type: Number, default: 200, min: 1 },
+  fatsTarget: { type: Number, default: 60, min: 1 },
+  budget: { type: String, default: "medium" },
+  hostelContext: { type: String, default: "" },
+  emailVerified: { type: Boolean, default: false },
+}, { timestamps: true, versionKey: false });
+
+export const UserModel: any = mongoose.models.User || mongoose.model("User", userSchema);

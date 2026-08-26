@@ -368,9 +368,9 @@ export const NutritionDashboard: React.FC<NutritionDashboardProps> = ({
 
                 <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 overflow-hidden flex items-center justify-center text-lg border border-slate-200 dark:border-slate-600">
-                    {mealToDelete.image_data ? (
+                    {(mealToDelete.image_url || mealToDelete.image_urls?.[0] || mealToDelete.image_data) ? (
                       <img
-                        src={mealToDelete.image_data}
+                        src={mealToDelete.image_url || mealToDelete.image_urls?.[0] || mealToDelete.image_data}
                         alt={mealToDelete.food_name}
                         className="w-full h-full object-cover"
                       />

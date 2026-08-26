@@ -29,6 +29,7 @@ import { MealTracker } from "./components/meal-tracker/MealTracker";
 import { DietPlanGenerator } from "./components/diet-plan/DietPlanGenerator";
 import { ProfileSettings } from "./components/profile/ProfileSettings";
 import { AIHealthAdvisor } from "./components/advisor/AIHealthAdvisor";
+import { AuthScreen } from "./components/auth/AuthScreen";
 
 const getTodayDateString = () => {
   const d = new Date();
@@ -38,6 +39,7 @@ const getTodayDateString = () => {
 export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [onboardingView, setOnboardingView] = useState<"welcome" | "form">("welcome");
+  const [showAuth, setShowAuth] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "tracker" | "diet" | "profile" | "advisor">("dashboard");
   const [meals, setMeals] = useState<MealItem[]>([]);
   const [budgetHostelMode, setBudgetHostelMode] = useState<boolean>(() => {
@@ -47,6 +49,7 @@ export default function App() {
     return (localStorage.getItem("nutrisync_theme") as "dark" | "light") || "light";
   });
   const [loading, setLoading] = useState<boolean>(true);
+  const [startupError, setStartupError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Apply theme class
@@ -71,10 +74,11 @@ export default function App() {
   useEffect(() => {
     const initApp = async () => {
       setLoading(true);
+      setStartupError(null);
       try {
-        const savedEmail = localStorage.getItem("user_email");
-        if (savedEmail) {
-          const profile = await api.getUserProfile(savedEmail);
+        const savedToken = localStorage.getItem("nutrisync_auth_token");
+        if (savedToken) {
+          const profile = await api.getCurrentUser();
           if (profile) {
             setUserProfile(profile);
             const userMeals = await api.getMeals(profile.email);
@@ -93,10 +97,16 @@ export default function App() {
                 console.warn("Could not migrate legacy local meals:", e);
               }
             }
+          } else {
+            localStorage.removeItem("nutrisync_auth_token");
+            localStorage.removeItem("user_email");
           }
         }
       } catch (err) {
+        localStorage.removeItem("nutrisync_auth_token");
+        localStorage.removeItem("user_email");
         console.error("Initialization error:", err);
+        setStartupError("We could not restore your account. Check that the server is running and try again.");
       } finally {
         setLoading(false);
       }
@@ -135,6 +145,17 @@ export default function App() {
     triggerToast("Meal entry deleted", "success");
   };
 
+  const handleLogout = async () => {
+    await api.logout();
+    localStorage.removeItem("nutrisync_last_opened_date");
+    setUserProfile(null);
+    setMeals([]);
+    setOnboardingView("welcome");
+    setActiveTab("start");
+    setShowAuth(false);
+    triggerToast("Logged out successfully. Returning to starting page...", "success");
+  };
+
   const handleProfileUpdated = (updated: UserProfile) => {
     setUserProfile(updated);
     if (updated.email) {
@@ -147,54 +168,6 @@ export default function App() {
       }).catch((e) => console.warn("Failed to reload meals:", e));
     }
     triggerToast("Profile & email updated successfully!", "success");
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("user_email");
-    localStorage.removeItem("nutrisync_last_opened_date");
-    setUserProfile(null);
-    setMeals([]);
-    setOnboardingView("welcome");
-    setActiveTab("start");
-    triggerToast("Logged out successfully. Returning to starting page...", "success");
-  };
-
-  const handleLoadDemo = async () => {
-    const sampleProfile: UserProfile = {
-      name: "Alex Rivera",
-      email: "alex.rivera@college.edu",
-      age: 21,
-      gender: "male",
-      weight: 68,
-      height: 172,
-      bmi: 23.0,
-      bmr: 1680,
-      tdee: 2350,
-      goal: "Healthy eating",
-      dietary_pref: "Vegetarian",
-      activity_level: "moderate",
-      calorie_target: 2150,
-      protein_target: 120,
-      carbs_target: 250,
-      fats_target: 65,
-      budget: "medium",
-      hostel_context: "Hostel mess & canteen food",
-    };
-
-    try {
-      const saved = await api.onboardUser(sampleProfile);
-      localStorage.setItem("user_email", saved.email);
-      localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
-      setUserProfile(saved);
-      setActiveTab("dashboard");
-      triggerToast("Sample College Mess Profile loaded!", "success");
-    } catch (e) {
-      setUserProfile(sampleProfile);
-      localStorage.setItem("user_email", sampleProfile.email);
-      localStorage.setItem("nutrisync_last_opened_date", getTodayDateString());
-      setActiveTab("dashboard");
-      triggerToast("Sample Profile activated!", "success");
-    }
   };
 
   if (loading) {
@@ -211,15 +184,46 @@ export default function App() {
     );
   }
 
+  if (startupError) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <AlertCircle className="w-8 h-8 text-rose-500" />
+        <p className="max-w-md text-sm font-semibold text-slate-600 dark:text-slate-300">{startupError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold cursor-pointer"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   if (!userProfile) {
     if (onboardingView === "welcome") {
       return (
         <StartingScreen
-          onGetStarted={() => setOnboardingView("form")}
-          onExploreDemo={handleLoadDemo}
+          onGetStarted={() => {
+            setShowAuth(true);
+            setOnboardingView("form");
+          }}
           isExistingUser={false}
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+        />
+      );
+    }
+
+    if (showAuth) {
+      return (
+        <AuthScreen
+          onAuthenticated={(profile) => {
+            setUserProfile(profile);
+            setActiveTab("dashboard");
+            setShowAuth(false);
+            setOnboardingView("welcome");
+          }}
+          onBack={() => setShowAuth(false)}
         />
       );
     }

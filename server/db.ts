@@ -15,6 +15,7 @@ export function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
+      password_hash TEXT,
       age INTEGER NOT NULL,
       weight REAL NOT NULL,
       height REAL NOT NULL,
@@ -35,7 +36,8 @@ export function initDatabase() {
       verification_code TEXT,
       pending_email TEXT,
       code_expires_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS meals (
@@ -165,6 +167,13 @@ export function initDatabase() {
     }
     if (!columnNames.includes("email_hostel_hacks")) {
       db.exec("ALTER TABLE users ADD COLUMN email_hostel_hacks INTEGER DEFAULT 1");
+    }
+    if (!columnNames.includes("password_hash")) {
+      db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+    }
+    if (!columnNames.includes("updated_at")) {
+      db.exec("ALTER TABLE users ADD COLUMN updated_at DATETIME");
+      db.exec("UPDATE users SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL");
     }
   } catch (err) {
     console.warn("⚠️ User table migration note:", err);

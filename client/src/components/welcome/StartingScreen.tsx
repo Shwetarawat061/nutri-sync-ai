@@ -12,7 +12,6 @@ import { NutriSyncLogo } from "../brand/NutriSyncLogo";
 
 interface StartingScreenProps {
   onGetStarted: () => void;
-  onExploreDemo?: () => void;
   isExistingUser?: boolean;
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
@@ -20,7 +19,6 @@ interface StartingScreenProps {
 
 export const StartingScreen: React.FC<StartingScreenProps> = ({
   onGetStarted,
-  onExploreDemo,
   isExistingUser = false,
   theme = "dark",
   onToggleTheme,
@@ -293,18 +291,6 @@ export const StartingScreen: React.FC<StartingScreenProps> = ({
               </button>
             </div>
 
-            {/* Quick Demo Exploration Profile Link */}
-            {onExploreDemo && !isExistingUser && (
-              <div className="text-center sm:text-right pt-1">
-                <button
-                  type="button"
-                  onClick={onExploreDemo}
-                  className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition cursor-pointer underline-offset-4 hover:underline"
-                >
-                  Quickly Explore with Sample College Mess Profile →
-                </button>
-              </div>
-            )}
           </div>
         </div>
 

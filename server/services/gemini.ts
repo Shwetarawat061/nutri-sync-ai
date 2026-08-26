@@ -47,13 +47,13 @@ export function getAiClient(): GoogleGenAI | null {
       },
     });
   } catch (err) {
-    console.warn("⚠️ GoogleGenAI client initialization warning:", err);
+    console.warn("GoogleGenAI client initialization failed");
     return null;
   }
 }
 
 export function handleAiError(operation: string, err: any) {
-  const errMsg = err?.message || JSON.stringify(err || "");
+  const errMsg = String(err?.message || err || "");
   if (
     errMsg.includes("401") ||
     errMsg.includes("403") ||
@@ -79,7 +79,7 @@ export function handleAiError(operation: string, err: any) {
     // Upstream load spikes are handled smoothly by deterministic fallback engine without error noise
     return;
   }
-  console.warn(`[AI Engine] ${operation}:`, errMsg);
+  console.warn(`[AI Engine] ${operation} failed`);
 }
 
 // 🛡️ Multi-model failover utility for maximum uptime & low latency
@@ -100,11 +100,14 @@ export async function callGeminiWithFailover(
   let lastError: any = null;
   for (const model of candidateModels) {
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: params.contents,
-        config: params.config,
-      });
+      let timeoutHandle: ReturnType<typeof setTimeout>;
+      const response = await Promise.race([
+        ai.models.generateContent({ model, contents: params.contents, config: params.config }),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error("AI request timed out")), 30_000);
+        }),
+      ]).finally(() => clearTimeout(timeoutHandle));
+      (response as unknown as { model: string }).model = model;
       return response;
     } catch (err: any) {
       lastError = err;
@@ -126,35 +129,118 @@ export async function callGeminiWithFailover(
   throw lastError;
 }
 
-export interface FoodScanResult {
-  food_name: string;
-  estimated_weight_g?: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-  fiber: number;
-  glycemic_index: "Low" | "Medium" | "High";
-  metabolic_impact: string;
-  nutrition_reasoning: string;
-  confidence: "low" | "medium" | "high";
-  health_rating: number;
+export interface FoodScanSuccess {
+  success: true;
+  source: "gemini";
+  model: string;
+  mealName: string;
+  foods: Array<{ name: string; portion?: string }>;
+  nutrition: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number;
+  };
+  confidence: number;
+  reasoning: string;
+  warnings: string[];
+  imageUrls?: string[];
+  estimatedWeightG?: number;
+}
+
+export interface FoodScanFailure {
+  success: false;
+  source: "gemini";
+  errorCode: "AI_UNAVAILABLE" | "AI_INVALID_RESULT" | "IMAGE_INVALID" | "LOW_CONFIDENCE";
+  message: string;
+}
+
+export type FoodScanResponse = FoodScanSuccess | FoodScanFailure;
+
+const scanFailure = (
+  errorCode: FoodScanFailure["errorCode"],
+  message: string
+): FoodScanFailure => ({ success: false, source: "gemini", errorCode, message });
+
+export function classifyScanError(error: unknown): FoodScanFailure {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
+  if (message.includes("timeout") || message.includes("timed out") || message.includes("abort")) {
+    return scanFailure("AI_UNAVAILABLE", "Food analysis is temporarily unavailable.");
+  }
+  return scanFailure("AI_UNAVAILABLE", "Food analysis is temporarily unavailable.");
+}
+
+function isFiniteNonNegative(value: unknown, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max;
+}
+
+export function validateGeminiScanPayload(value: unknown): FoodScanSuccess | null {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as Record<string, unknown>;
+  const nutrition = payload.nutrition;
+  if (!nutrition || typeof nutrition !== "object") return null;
+  const nutritionValues = nutrition as Record<string, unknown>;
+  const foods = payload.foods;
+  if (!Array.isArray(foods) || foods.length === 0 || foods.some((food) => {
+    if (typeof food === "string") return food.trim().length === 0;
+    return !(food && typeof food === "object" && typeof (food as Record<string, unknown>).name === "string" && String((food as Record<string, unknown>).name).trim());
+  })) return null;
+
+  const mealName = payload.mealName;
+  const reasoning = payload.reasoning;
+  const confidence = payload.confidence;
+  if (typeof mealName !== "string" || !mealName.trim() || typeof reasoning !== "string" || !reasoning.trim() ||
+      !Array.isArray(payload.warnings) || !payload.warnings.every((warning) => typeof warning === "string")) return null;
+  if (!isFiniteNonNegative(nutritionValues.calories, 10000) ||
+      !isFiniteNonNegative(nutritionValues.protein, 1000) ||
+      !isFiniteNonNegative(nutritionValues.carbs, 1000) ||
+      !isFiniteNonNegative(nutritionValues.fat, 1000) ||
+      !isFiniteNonNegative(nutritionValues.fiber, 300) ||
+      !isFiniteNonNegative(confidence, 1)) return null;
+
+  return {
+    success: true,
+    source: "gemini",
+    model: typeof payload.model === "string" && payload.model.trim() ? payload.model : "unknown",
+    mealName: mealName.trim(),
+    foods: foods.map((food) => typeof food === "string" ? { name: food.trim() } : {
+      name: String((food as Record<string, unknown>).name).trim(),
+      ...((food as Record<string, unknown>).portion !== undefined ? { portion: String((food as Record<string, unknown>).portion) } : {}),
+    }),
+    nutrition: {
+      calories: nutritionValues.calories as number,
+      protein: nutritionValues.protein as number,
+      carbs: nutritionValues.carbs as number,
+      fat: nutritionValues.fat as number,
+      fiber: nutritionValues.fiber as number,
+    },
+    confidence: confidence as number,
+    reasoning: reasoning.trim(),
+    warnings: payload.warnings as string[],
+    ...(isFiniteNonNegative(payload.estimatedWeightG, 10000) ? { estimatedWeightG: payload.estimatedWeightG } : {}),
+  };
 }
 
 // 📸 Food Scan AI Engine - NutriSync Vision AI
 export async function scanFoodImage(
-  imageBase64: string,
-  mimeType: string = "image/jpeg",
+  imageBase64: string | string[],
+  mimeType: string | string[] = "image/jpeg",
   userGoal: string = "Healthy eating",
   userTargets?: { calories: number; protein: number; carbs: number; fats: number }
-): Promise<FoodScanResult> {
+): Promise<FoodScanResponse> {
   const ai = getAiClient();
 
-  // Normalize image data: handle web URLs, data URIs, and raw base64
-  let cleanBase64 = typeof imageBase64 === "string" ? imageBase64 : "";
-  let detectedMime = mimeType || "image/jpeg";
+  // Normalize every image so Gemini can compare multiple views of the same meal.
+  const sourceImages = Array.isArray(imageBase64) ? imageBase64.slice(0, 4) : [imageBase64];
+  const sourceMimes = Array.isArray(mimeType) ? mimeType : [mimeType];
+  const normalizedImages: Array<{ data: string; mime: string }> = [];
 
-  if (cleanBase64.startsWith("http://") || cleanBase64.startsWith("https://")) {
+  for (let imageIndex = 0; imageIndex < sourceImages.length; imageIndex++) {
+    let cleanBase64 = typeof sourceImages[imageIndex] === "string" ? sourceImages[imageIndex] : "";
+    let detectedMime = sourceMimes[imageIndex] || sourceMimes[0] || "image/jpeg";
+
+    if (cleanBase64.startsWith("http://") || cleanBase64.startsWith("https://")) {
     try {
       const fetchRes = await fetch(cleanBase64);
       if (fetchRes.ok) {
@@ -164,42 +250,51 @@ export async function scanFoodImage(
         if (headerMime) detectedMime = String(headerMime).split(";")[0].trim();
       }
     } catch (fetchErr) {
-      console.error("Failed to fetch image from URL for AI analysis:", fetchErr);
+      console.warn("Failed to fetch image from URL for AI analysis");
     }
-  } else if (cleanBase64.includes("base64,")) {
-    const parts = cleanBase64.split("base64,");
-    cleanBase64 = parts[1] || "";
-    const mimeMatch = parts[0]?.match(/data:(.*?);/);
-    if (mimeMatch && mimeMatch[1]) {
-      detectedMime = String(mimeMatch[1]).split(";")[0].trim();
+    } else if (cleanBase64.includes("base64,")) {
+      const parts = cleanBase64.split("base64,");
+      cleanBase64 = parts[1] || "";
+      const mimeMatch = parts[0]?.match(/data:(.*?);/);
+      if (mimeMatch && mimeMatch[1]) {
+        detectedMime = String(mimeMatch[1]).split(";")[0].trim();
+      }
+    }
+
+    cleanBase64 = cleanBase64.replace(/\s+/g, "");
+    if (cleanBase64.length > 50) {
+      normalizedImages.push({ data: cleanBase64, mime: detectedMime || "image/jpeg" });
     }
   }
 
-  // Remove whitespace/newlines from base64 string
-  cleanBase64 = cleanBase64.replace(/\s+/g, "");
+  if (normalizedImages.length === 0) return scanFailure("IMAGE_INVALID", "The selected image could not be analyzed.");
+  if (!ai) return scanFailure("AI_UNAVAILABLE", "Food analysis is temporarily unavailable.");
 
-  if (ai && cleanBase64 && cleanBase64.length > 50) {
+  if (ai) {
     try {
-      const promptText = `Analyze this food image as NutriSync Vision AI.
+      const promptText = `Analyze ${normalizedImages.length} photo(s) of the same food or meal as NutriSync Vision AI.
+
+Use all views together. Cross-check visible ingredients, serving size, depth, and overlap between photos. Do not add the same food twice just because it appears in multiple photos. If the photos conflict, prefer the clearest view and lower the confidence.
 
 User Goal: ${userGoal}
 Daily Targets: ${userTargets ? `${userTargets.calories} kcal | ${userTargets.protein}g Protein | ${userTargets.carbs}g Carbs | ${userTargets.fats}g Fats` : "Standard Metabolic Balance"}
 
 MANDATORY RULES:
 1. SPECIFIC IDENTIFICATION: Never output generic titles like "Meal Plate", "Food Item", or "Snack". Identify the exact item (e.g., "Glazed Chocolate Donut", "Paneer Butter Masala with 2 Rotis", "Chicken Biryani with Raita", "Oatmeal with Almonds and Blueberries").
-2. REALISTIC MACRO BREAKDOWN: Estimate visible weight in grams (estimated_weight_g), total calories (calories), protein (g), carbs (g), fats (g), and fiber (g) accurately based on visible food geometry, cooking methods, sauces, and toppings.
+2. REALISTIC MACRO BREAKDOWN: Estimate visible weight in grams (estimatedWeightG) and nested nutrition values (calories, protein, carbs, fat, fiber) accurately based on visible food geometry, cooking methods, sauces, and toppings.
 3. CONTEXTUAL & HONEST INSIGHT: Never output generic statements like "Provides steady energy". If an item is high-sugar/refined flour (like a donut, pastry, or deep-fried snack), state it directly: "High simple sugars and refined fats; minimal protein satiety. Pair with a boiled egg or whey shake to blunt insulin spike." If it is balanced, state the precise physiological metabolic effect.
-4. STRUCTURED OUTPUT ONLY: Respond strictly in JSON matching the specified schema.`;
+4. PERSONALIZATION: Explain how this meal affects the user's stated goal and remaining daily targets.
+5. STRUCTURED OUTPUT ONLY: Respond strictly in JSON matching the specified schema, use confidence from 0 to 1, and include warnings when the image is ambiguous.`;
 
       const response = await callGeminiWithFailover(ai, {
         primaryModel: "gemini-3.7-flash",
         contents: [
-          {
+          ...normalizedImages.map((image) => ({
             inlineData: {
-              mimeType: detectedMime || "image/jpeg",
-              data: cleanBase64,
+              mimeType: image.mime,
+              data: image.data,
             },
-          },
+          })),
           {
             text: promptText,
           },
@@ -209,113 +304,57 @@ MANDATORY RULES:
 
 RULES:
 1. SPECIFIC IDENTIFICATION: Never output generic titles like "Meal Plate", "Food Item", or "Snack". Identify the exact item (e.g., "Glazed Chocolate Donut", "Paneer Butter Masala with 2 Rotis", "Chicken Biryani").
-2. REALISTIC MACRO BREAKDOWN: Estimate weight in grams, total calories, protein, carbs, and fats accurately based on visible food geometry and toppings.
+2. REALISTIC MACRO BREAKDOWN: Estimate weight in grams and nested nutrition values accurately based on visible food geometry and toppings.
 3. CONTEXTUAL & HONEST INSIGHT: Never output generic statements like "Provides steady energy". If an item is high-sugar/refined flour (like a donut), state it directly: "High simple sugars and refined fats; minimal protein satiety. Pair with a boiled egg or whey shake to blunt insulin spike."
-4. STRUCTURED OUTPUT ONLY: Always respond strictly in JSON matching the specified schema.`,
+4. PERSONALIZATION: Relate the reasoning to the user's goal and daily targets.
+5. STRUCTURED OUTPUT ONLY: Always respond strictly in JSON matching the specified schema.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              food_name: {
+              mealName: {
                 type: Type.STRING,
                 description: "Exact specific name of the identified dish (e.g. 'Glazed Chocolate Donut', 'Paneer Butter Masala with 2 Rotis', 'Chicken Biryani'). NEVER generic terms like 'Meal Plate' or 'Snack'.",
               },
-              estimated_weight_g: {
-                type: Type.NUMBER,
-                description: "Estimated total portion weight in grams based on visible dimensions and geometry",
+              estimatedWeightG: { type: Type.NUMBER, description: "Estimated total portion weight in grams" },
+              foods: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Identified foods in the meal" },
+              nutrition: {
+                type: Type.OBJECT,
+                properties: {
+                  calories: { type: Type.NUMBER }, protein: { type: Type.NUMBER }, carbs: { type: Type.NUMBER },
+                  fat: { type: Type.NUMBER }, fiber: { type: Type.NUMBER },
+                },
+                required: ["calories", "protein", "carbs", "fat", "fiber"],
               },
-              calories: { type: Type.NUMBER, description: "Estimated total calories in kcal" },
-              protein: { type: Type.NUMBER, description: "Protein in grams" },
-              carbs: { type: Type.NUMBER, description: "Carbohydrates in grams" },
-              fats: { type: Type.NUMBER, description: "Total fats in grams" },
-              fiber: { type: Type.NUMBER, description: "Dietary fiber in grams" },
-              glycemic_index: {
-                type: Type.STRING,
-                enum: ["Low", "Medium", "High"],
-                description: "Glycemic impact level",
-              },
-              metabolic_impact: {
-                type: Type.STRING,
-                description: "Direct, honest clinical metabolic insight. Never generic fluff. Detail exact glucose/insulin impact and satiety velocity.",
-              },
-              nutrition_reasoning: {
-                type: Type.STRING,
-                description: "Honest contextual nutritional analysis with actionable pairing hacks (e.g. what to add to blunt glucose spike or boost protein).",
-              },
-              confidence: {
-                type: Type.STRING,
-                enum: ["low", "medium", "high"],
-                description: "Estimation confidence rating",
-              },
-              health_rating: {
-                type: Type.NUMBER,
-                description: "Nutrient density rating from 1 (ultra-processed/high sugar) to 10 (whole-food/micronutrient-dense)",
-              },
+              confidence: { type: Type.NUMBER, description: "Confidence from 0 to 1" },
+              reasoning: { type: Type.STRING },
+              warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
             },
             required: [
-              "food_name",
-              "estimated_weight_g",
-              "calories",
-              "protein",
-              "carbs",
-              "fats",
-              "fiber",
-              "glycemic_index",
-              "metabolic_impact",
-              "nutrition_reasoning",
+              "mealName",
+              "foods",
+              "nutrition",
               "confidence",
-              "health_rating",
+              "reasoning",
+              "warnings",
             ],
           },
         },
       });
 
-      const text = response.text || "{}";
+      const text = response.text;
+      if (typeof text !== "string" || !text.trim()) return scanFailure("AI_INVALID_RESULT", "The AI returned an empty result. Please retry.");
       const parsed = JSON.parse(text);
-      if (parsed && parsed.food_name) {
-        return {
-          food_name: parsed.food_name,
-          estimated_weight_g: Number(parsed.estimated_weight_g) || 300,
-          calories: Math.max(0, Number(parsed.calories) || 350),
-          protein: Math.max(0, Math.round((Number(parsed.protein) || 10) * 10) / 10),
-          carbs: Math.max(0, Math.round((Number(parsed.carbs) || 30) * 10) / 10),
-          fats: Math.max(0, Math.round((Number(parsed.fats) || 8) * 10) / 10),
-          fiber: Math.max(0, Math.round((Number(parsed.fiber) || 3) * 10) / 10),
-          glycemic_index: (["Low", "Medium", "High"].includes(parsed.glycemic_index)
-            ? parsed.glycemic_index
-            : "Medium") as "Low" | "Medium" | "High",
-          metabolic_impact:
-            parsed.metabolic_impact ||
-            "Direct metabolic analysis completed by NutriSync Vision AI.",
-          nutrition_reasoning:
-            parsed.nutrition_reasoning ||
-            `Nutritional breakdown for ${parsed.food_name} evaluated against your ${userGoal} goal.`,
-          confidence: (["low", "medium", "high"].includes(parsed.confidence)
-            ? parsed.confidence
-            : "high") as "low" | "medium" | "high",
-          health_rating: Math.min(10, Math.max(1, Number(parsed.health_rating) || 7)),
-        };
-      }
+      const validated = validateGeminiScanPayload(parsed);
+      if (!validated) return scanFailure("AI_INVALID_RESULT", "The AI returned incomplete nutrition data. Please retry.");
+      validated.model = (response as unknown as { model?: string }).model || "gemini-3.7-flash";
+      if (validated.confidence < 0.5) return scanFailure("LOW_CONFIDENCE", "The image is not clear enough to estimate nutrition reliably. Please retry with a clearer photo.");
+      return validated;
     } catch (err) {
       handleAiError("scanFoodImage", err);
+      return classifyScanError(err);
     }
   }
-
-  // Realistic fallback for optical scan
-  return {
-    food_name: "Paneer Butter Masala with 2 Whole Wheat Rotis",
-    estimated_weight_g: 380,
-    calories: 540,
-    protein: 22,
-    carbs: 48,
-    fats: 28,
-    fiber: 6.5,
-    glycemic_index: "Medium",
-    metabolic_impact: "Moderate glycemic response buffered by dairy casein and complex whole-wheat fiber. Satiety window: ~3.5 hours.",
-    nutrition_reasoning: "High protein from dairy casein; moderate fat from gravy. Pair with a bowl of cucumber salad to add volume and micronutrients.",
-    confidence: "high",
-    health_rating: 7,
-  };
 }
 
 export interface NextBestActionInput {

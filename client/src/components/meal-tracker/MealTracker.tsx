@@ -74,6 +74,9 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
   const [manualDate, setManualDate] = useState<string>(() => getLocalDateString());
   const [saving, setSaving] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [analyzingManualMeal, setAnalyzingManualMeal] = useState<boolean>(false);
+  const [manualAnalysis, setManualAnalysis] = useState<any | null>(null);
+  const [manualPortionFactor, setManualPortionFactor] = useState<number>(1);
 
   // Targets
   const targetCalories = userProfile?.calorie_target || 1800;
@@ -214,7 +217,11 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
         fats: Number(fats) || 0,
         fiber: Number(fiber) || 0,
         meal_type: mealType,
-        nutrition_reasoning: `Logged manually under ${mealType}.`,
+        glycemic_index: manualAnalysis?.glycemic_index,
+        metabolic_impact: manualAnalysis?.metabolic_impact,
+        nutrition_reasoning: manualAnalysis
+          ? `${manualAnalysis.nutrition_reasoning} Portion adjusted to ${Math.round(manualPortionFactor * 100)}% of the AI estimate.`
+          : `Logged manually under ${mealType}.`,
         created_at: mealCreatedAt,
       };
 
@@ -229,12 +236,61 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
       setCarbs("");
       setFats("");
       setFiber("");
+      setManualAnalysis(null);
+      setManualPortionFactor(1);
     } catch (err: any) {
       console.error("Manual meal log failed:", err);
       setErrorMessage(err.message || "Failed to save meal");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleManualAnalysis = async () => {
+    if (!foodName.trim()) {
+      setErrorMessage("Enter a dish or meal name first.");
+      return;
+    }
+
+    setAnalyzingManualMeal(true);
+    setErrorMessage(null);
+    try {
+      const result = await api.parseMealText({
+        text: foodName.trim(),
+        userGoal: userProfile?.goal || "Maintenance",
+        dietaryPreference: userProfile?.dietary_pref || userProfile?.dietaryPreference,
+        userTargets: {
+          calories: targetCalories,
+          protein: targetProtein,
+          carbs: targetCarbs,
+          fats: targetFats,
+        },
+        budgetHostelMode: budgetHostelMode,
+      });
+
+      setManualAnalysis(result);
+      setManualPortionFactor(1);
+      setCalories(String(Math.round(result.calories || 0)));
+      setProtein(String(Math.round((result.protein || 0) * 10) / 10));
+      setCarbs(String(Math.round((result.carbs || 0) * 10) / 10));
+      setFats(String(Math.round((result.fats || 0) * 10) / 10));
+      setFiber(String(Math.round((result.fiber || 0) * 10) / 10));
+    } catch (err: any) {
+      console.error("Manual meal analysis failed:", err);
+      setErrorMessage(err.message || "Failed to analyze this meal with AI.");
+    } finally {
+      setAnalyzingManualMeal(false);
+    }
+  };
+
+  const handleManualPortionChange = (factor: number) => {
+    setManualPortionFactor(factor);
+    if (!manualAnalysis) return;
+    setCalories(String(Math.round((manualAnalysis.calories || 0) * factor)));
+    setProtein(String(Math.round((manualAnalysis.protein || 0) * factor * 10) / 10));
+    setCarbs(String(Math.round((manualAnalysis.carbs || 0) * factor * 10) / 10));
+    setFats(String(Math.round((manualAnalysis.fats || 0) * factor * 10) / 10));
+    setFiber(String(Math.round((manualAnalysis.fiber || 0) * factor * 10) / 10));
   };
 
   const handleConfirmDelete = async () => {
@@ -643,9 +699,9 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/30 overflow-hidden flex items-center justify-center text-xl shrink-0 border border-amber-100 dark:border-amber-900/30">
-                {breakfastMeals[0]?.image_data ? (
+                {(breakfastMeals[0]?.image_url || breakfastMeals[0]?.image_urls?.[0] || breakfastMeals[0]?.image_data) ? (
                   <img
-                    src={breakfastMeals[0].image_data}
+                    src={breakfastMeals[0].image_url || breakfastMeals[0].image_urls?.[0] || breakfastMeals[0].image_data}
                     alt="Breakfast"
                     className="w-full h-full object-cover"
                   />
@@ -694,9 +750,9 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-950/30 overflow-hidden flex items-center justify-center text-xl shrink-0 border border-orange-100 dark:border-orange-900/30">
-                {lunchMeals[0]?.image_data ? (
+                {(lunchMeals[0]?.image_url || lunchMeals[0]?.image_urls?.[0] || lunchMeals[0]?.image_data) ? (
                   <img
-                    src={lunchMeals[0].image_data}
+                    src={lunchMeals[0].image_url || lunchMeals[0].image_urls?.[0] || lunchMeals[0].image_data}
                     alt="Lunch"
                     className="w-full h-full object-cover"
                   />
@@ -745,9 +801,9 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 overflow-hidden flex items-center justify-center text-xl shrink-0 border border-emerald-100 dark:border-emerald-900/30">
-                {snackMeals[0]?.image_data ? (
+                {(snackMeals[0]?.image_url || snackMeals[0]?.image_urls?.[0] || snackMeals[0]?.image_data) ? (
                   <img
-                    src={snackMeals[0].image_data}
+                    src={snackMeals[0].image_url || snackMeals[0].image_urls?.[0] || snackMeals[0].image_data}
                     alt="Snack"
                     className="w-full h-full object-cover"
                   />
@@ -796,9 +852,9 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 overflow-hidden flex items-center justify-center text-xl shrink-0 border border-indigo-100 dark:border-indigo-900/30">
-                {dinnerMeals[0]?.image_data ? (
+                {(dinnerMeals[0]?.image_url || dinnerMeals[0]?.image_urls?.[0] || dinnerMeals[0]?.image_data) ? (
                   <img
-                    src={dinnerMeals[0].image_data}
+                    src={dinnerMeals[0].image_url || dinnerMeals[0].image_urls?.[0] || dinnerMeals[0].image_data}
                     alt="Dinner"
                     className="w-full h-full object-cover"
                   />
@@ -1146,9 +1202,22 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   required
                   placeholder="e.g., 2 Roti, Dal, Paneer Bhurji & Curd"
                   value={foodName}
-                  onChange={(e) => setFoodName(e.target.value)}
+                  onChange={(e) => {
+                    setFoodName(e.target.value);
+                    setManualAnalysis(null);
+                    setManualPortionFactor(1);
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                 />
+                <button
+                  type="button"
+                  onClick={handleManualAnalysis}
+                  disabled={analyzingManualMeal || !foodName.trim()}
+                  className="mt-2 w-full px-3 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {analyzingManualMeal ? "Analyzing nutrition..." : "Analyze with AI"}
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1181,6 +1250,66 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                   </select>
                 </div>
               </div>
+
+              {manualAnalysis && (
+                <div className="p-3 rounded-2xl bg-sky-50 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-900/50 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 font-black">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        AI detected nutrition
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        How much did you actually eat? Adjust the portion to update the values below.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-300 whitespace-nowrap">
+                      {Math.round(manualPortionFactor * 100)}% portion
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-amber-200/70 dark:border-amber-900/40 px-1.5 py-2 text-center">
+                      <span className="block text-[9px] font-bold uppercase text-amber-600">Calories</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-white">{calories || 0}</span>
+                      <span className="text-[9px] text-slate-400">kcal</span>
+                    </div>
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-rose-200/70 dark:border-rose-900/40 px-1.5 py-2 text-center">
+                      <span className="block text-[9px] font-bold uppercase text-rose-600">Protein</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-white">{protein || 0}g</span>
+                    </div>
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-sky-200/70 dark:border-sky-900/40 px-1.5 py-2 text-center">
+                      <span className="block text-[9px] font-bold uppercase text-sky-600">Carbs</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-white">{carbs || 0}g</span>
+                    </div>
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-amber-200/70 dark:border-amber-900/40 px-1.5 py-2 text-center">
+                      <span className="block text-[9px] font-bold uppercase text-amber-600">Fats</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-white">{fats || 0}g</span>
+                    </div>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.05"
+                    value={manualPortionFactor}
+                    onChange={(e) => handleManualPortionChange(Number(e.target.value))}
+                    className="w-full accent-sky-600 cursor-pointer"
+                    aria-label="Adjust meal portion"
+                  />
+                  <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+                    <span>Half portion</span>
+                    <span>AI estimate</span>
+                    <span>Double portion</span>
+                  </div>
+                  {manualAnalysis.nutrition_reasoning && (
+                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                      {manualAnalysis.nutrition_reasoning}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
@@ -1239,7 +1368,7 @@ export const MealTracker: React.FC<MealTrackerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || analyzingManualMeal}
                   className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-md shadow-emerald-600/20 cursor-pointer"
                 >
                   {saving ? "Saving..." : "Save Meal"}

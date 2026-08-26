@@ -59,7 +59,18 @@ Open `.env` and add your Gemini API key:
 
 ```env
 GEMINI_API_KEY="your_actual_gemini_api_key_here"
+JWT_SECRET="your_long_random_secret_at_least_32_characters"
+MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/nutrisync"
+CLOUDINARY_CLOUD_NAME="your_cloud_name"
+CLOUDINARY_API_KEY="your_cloudinary_api_key"
+CLOUDINARY_API_SECRET="your_cloudinary_api_secret"
 ```
+
+Authentication uses bcrypt password hashes and 7-day JWT sessions. The browser stores the JWT locally and sends it as a Bearer token. Protected user, meal, and AI routes always derive ownership from the token, never from a frontend-supplied user ID or email.
+
+Persistent data is stored in MongoDB Atlas through Mongoose. On startup, the migration-safe initializer imports legacy SQLite users, meals, and nutrition goals once, recording the `sqlite-to-mongo-v1` marker in MongoDB. Keep `.env` out of source control.
+
+Food scan images are uploaded server-side to Cloudinary; only their URLs are stored with new meals. Configure the three Cloudinary variables before enabling food scans.
 
 *(Optional)* Set `PORT` (defaults to `3000`) or `APP_URL` if customizing the host URL.
 

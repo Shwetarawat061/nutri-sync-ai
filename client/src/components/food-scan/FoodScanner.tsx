@@ -47,15 +47,18 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
   onClose,
 }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [mimeType, setMimeType] = useState<string>("image/jpeg");
+  const [mimeTypes, setMimeTypes] = useState<string[]>([]);
   const [scanning, setScanning] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<FoodScanResponse | null>(null);
   const [baseScan, setBaseScan] = useState<FoodScanResponse | null>(null);
-  const [portionWeight, setPortionWeight] = useState<number>(350); // grams
+  const [portionWeight, setPortionWeight] = useState<number>(0);
   const [mealSlot, setMealSlot] = useState<"Breakfast" | "Lunch" | "Dinner" | "Snack">("Breakfast");
   const [saving, setSaving] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<"AI_SUCCESS" | "AI_UNAVAILABLE" | "AI_INVALID_RESULT" | "IMAGE_INVALID" | "LOW_CONFIDENCE" | "DAILY_LIMIT_REACHED" | "IMAGE_STORAGE_UNAVAILABLE" | null>(null);
 
   // Live Camera states
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
@@ -66,10 +69,10 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
   // Editable fields state
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editName, setEditName] = useState<string>("");
-  const [editCalories, setEditCalories] = useState<number>(320);
-  const [editProtein, setEditProtein] = useState<number>(28);
-  const [editCarbs, setEditCarbs] = useState<number>(27);
-  const [editFats, setEditFats] = useState<number>(12);
+  const [editCalories, setEditCalories] = useState<number>(0);
+  const [editProtein, setEditProtein] = useState<number>(0);
+  const [editCarbs, setEditCarbs] = useState<number>(0);
+  const [editFats, setEditFats] = useState<number>(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,11 +88,11 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
   // Sync editing fields when scan result arrives
   useEffect(() => {
     if (scanResult) {
-      setEditName(scanResult.food_name);
-      setEditCalories(Math.round(scanResult.calories));
-      setEditProtein(Math.round(scanResult.protein));
-      setEditCarbs(Math.round(scanResult.carbs));
-      setEditFats(Math.round(scanResult.fats));
+      setEditName(scanResult.mealName);
+      setEditCalories(Math.round(scanResult.nutrition.calories));
+      setEditProtein(Math.round(scanResult.nutrition.protein));
+      setEditCarbs(Math.round(scanResult.nutrition.carbs));
+      setEditFats(Math.round(scanResult.nutrition.fat));
     }
   }, [scanResult]);
 
@@ -147,34 +150,47 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
 
     stopCameraStream();
     setSelectedImage(dataUrl);
+    setSelectedImages([dataUrl]);
     setMimeType("image/jpeg");
-    runScan(dataUrl, "image/jpeg");
+    setMimeTypes(["image/jpeg"]);
+    runScan([dataUrl], ["image/jpeg"]);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = (Array.from(e.target.files || []) as File[]).slice(0, 4);
+    if (files.length === 0) return;
 
     setErrorMsg(null);
     setSavedSuccess(false);
     setScanResult(null);
     setBaseScan(null);
-    setMimeType(file.type || "image/jpeg");
+    setScanStatus(null);
+    const readFile = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const resultStr = event.target?.result as string;
-      setSelectedImage(resultStr);
-      stopCameraStream();
-      runScan(resultStr, file.type || "image/jpeg");
-    };
-    reader.readAsDataURL(file);
+    Promise.all(files.map(readFile))
+      .then((images) => {
+        const types = files.map((file) => file.type || "image/jpeg");
+        setSelectedImage(images[0]);
+        setSelectedImages(images);
+        setMimeType(types[0]);
+        setMimeTypes(types);
+        stopCameraStream();
+        runScan(images, types);
+      })
+      .catch((err: Error) => setErrorMsg(err.message || "Could not read the selected photos."));
   };
 
-  const runScan = async (imgData: string, mime: string) => {
+  const runScan = async (imgData: string | string[], mime: string | string[]) => {
     setScanning(true);
     setErrorMsg(null);
     setSavedSuccess(false);
+    setScanStatus(null);
 
     try {
       const userTargets = userProfile
@@ -193,12 +209,13 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
         userTargets
       );
 
-      const baseWeight = result.estimated_weight_g || 350;
       setScanResult(result);
       setBaseScan(result);
-      setPortionWeight(baseWeight);
+      setPortionWeight(result.estimatedWeightG ?? 0);
+      setScanStatus(result.confidence < 0.5 ? "LOW_CONFIDENCE" : "AI_SUCCESS");
     } catch (err: any) {
       console.error("Scanning failed:", err);
+      setScanStatus(err.errorCode || "AI_UNAVAILABLE");
       setErrorMsg(err.message || "Failed to analyze image with AI.");
     } finally {
       setScanning(false);
@@ -209,15 +226,18 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
   const handlePortionChange = (newGrams: number) => {
     setPortionWeight(newGrams);
     if (!baseScan) return;
-    const baseWeight = baseScan.estimated_weight_g || 350;
+    const baseWeight = baseScan.estimatedWeightG;
+    if (!baseWeight) return;
     const factor = newGrams / baseWeight;
     setScanResult({
       ...baseScan,
-      calories: Math.round(baseScan.calories * factor),
-      protein: Math.round(baseScan.protein * factor * 10) / 10,
-      carbs: Math.round(baseScan.carbs * factor * 10) / 10,
-      fats: Math.round(baseScan.fats * factor * 10) / 10,
-      fiber: Math.round((baseScan.fiber || 4) * factor * 10) / 10,
+      nutrition: {
+        calories: Math.round(baseScan.nutrition.calories * factor),
+        protein: Math.round(baseScan.nutrition.protein * factor * 10) / 10,
+        carbs: Math.round(baseScan.nutrition.carbs * factor * 10) / 10,
+        fat: Math.round(baseScan.nutrition.fat * factor * 10) / 10,
+        fiber: Math.round(baseScan.nutrition.fiber * factor * 10) / 10,
+      },
     });
   };
 
@@ -253,12 +273,16 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
       setErrorMsg("Please complete your profile to log meals.");
       return;
     }
+    if (!scanResult || scanStatus !== "AI_SUCCESS") {
+      setErrorMsg("A valid AI analysis is required before logging this meal.");
+      return;
+    }
 
-    const currentName = isEditing ? editName : scanResult?.food_name || "Scanned Meal";
-    const currentCalories = isEditing ? editCalories : scanResult?.calories || 320;
-    const currentProtein = isEditing ? editProtein : scanResult?.protein || 28;
-    const currentCarbs = isEditing ? editCarbs : scanResult?.carbs || 27;
-    const currentFats = isEditing ? editFats : scanResult?.fats || 12;
+    const currentName = isEditing ? editName : scanResult.mealName;
+    const currentCalories = isEditing ? editCalories : scanResult.nutrition.calories;
+    const currentProtein = isEditing ? editProtein : scanResult.nutrition.protein;
+    const currentCarbs = isEditing ? editCarbs : scanResult.nutrition.carbs;
+    const currentFats = isEditing ? editFats : scanResult.nutrition.fat;
 
     setSaving(true);
     try {
@@ -269,12 +293,20 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
         protein: Number(currentProtein),
         carbs: Number(currentCarbs),
         fats: Number(currentFats),
-        fiber: scanResult?.fiber || 4,
-        glycemic_index: scanResult?.glycemic_index || "Medium",
-        metabolic_impact: scanResult?.metabolic_impact,
-        nutrition_reasoning: scanResult?.nutrition_reasoning,
+        fiber: scanResult.nutrition.fiber,
+        metabolic_impact: scanResult.reasoning,
+        nutrition_reasoning: scanResult.reasoning,
         meal_type: mealSlot,
-        image_data: selectedImage || undefined,
+        image_urls: scanResult.imageUrls,
+        image_url: scanResult.imageUrls?.[0],
+        foods: scanResult.foods,
+        nutrition: scanResult.nutrition,
+        ai_metadata: {
+          source: scanResult.source,
+          model: scanResult.model,
+          confidence: scanResult.confidence,
+          warnings: scanResult.warnings,
+        },
         created_at: new Date().toISOString(),
       };
 
@@ -291,8 +323,11 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
   const handleReset = () => {
     stopCameraStream();
     setSelectedImage(null);
+    setSelectedImages([]);
+    setMimeTypes([]);
     setScanResult(null);
     setBaseScan(null);
+    setScanStatus(null);
     setErrorMsg(null);
     setSavedSuccess(false);
     setIsEditing(false);
@@ -313,6 +348,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
         ref={fileInputRef}
         onChange={handleFileChange}
         accept="image/*"
+        multiple
         className="hidden"
         id="camera-photo-input"
       />
@@ -425,7 +461,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                     Live Cam or Upload
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Multimodal AI portion breakdown
+                    Multimodal AI portion breakdown (up to 4 photos)
                   </p>
                 </div>
               </div>
@@ -531,7 +567,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
               />
             ) : (
               <h3 className="text-xl font-extrabold text-slate-900 dark:text-white capitalize">
-                {scanResult?.food_name || "Breakfast Plate"}
+                {scanResult?.mealName}
               </h3>
             )}
 
@@ -554,7 +590,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
 
           <div className="text-right shrink-0">
             <span className="text-lg font-black text-slate-900 dark:text-white">
-              {isEditing ? editCalories : Math.round(scanResult?.calories || 320)}{" "}
+              {isEditing ? editCalories : Math.round(scanResult?.nutrition.calories ?? 0)}{" "}
               <span className="text-xs font-semibold text-slate-400">kcal</span>
             </span>
             <div className="flex items-center gap-1 text-xs text-slate-400 font-medium mt-0.5 justify-end">
@@ -615,7 +651,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                       width: `${Math.min(
                         100,
                         Math.round(
-                          ((isEditing ? editProtein : scanResult?.protein || 28) / targetProtein) *
+                          ((isEditing ? editProtein : scanResult?.nutrition.protein ?? 0) / targetProtein) *
                             100
                         )
                       )}%`,
@@ -632,7 +668,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                 />
               ) : (
                 <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mt-1">
-                  {Math.round(scanResult?.protein || 28)}
+                  {Math.round(scanResult?.nutrition.protein ?? 0)}
                   <span className="text-[10px] text-slate-400 font-normal">/{targetProtein}g</span>
                 </span>
               )}
@@ -652,7 +688,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                       width: `${Math.min(
                         100,
                         Math.round(
-                          ((isEditing ? editCarbs : scanResult?.carbs || 27) / targetCarbs) * 100
+                          ((isEditing ? editCarbs : scanResult?.nutrition.carbs ?? 0) / targetCarbs) * 100
                         )
                       )}%`,
                     }}
@@ -668,7 +704,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                 />
               ) : (
                 <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mt-1">
-                  {Math.round(scanResult?.carbs || 27)}
+                  {Math.round(scanResult?.nutrition.carbs ?? 0)}
                   <span className="text-[10px] text-slate-400 font-normal">/{targetCarbs}g</span>
                 </span>
               )}
@@ -688,7 +724,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                       width: `${Math.min(
                         100,
                         Math.round(
-                          ((isEditing ? editFats : scanResult?.fats || 12) / targetFats) * 100
+                          ((isEditing ? editFats : scanResult?.nutrition.fat ?? 0) / targetFats) * 100
                         )
                       )}%`,
                     }}
@@ -704,7 +740,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                 />
               ) : (
                 <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mt-1">
-                  {Math.round(scanResult?.fats || 12)}
+                  {Math.round(scanResult?.nutrition.fat ?? 0)}
                   <span className="text-[10px] text-slate-400 font-normal">/{targetFats}g</span>
                 </span>
               )}
@@ -732,9 +768,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-semibold">
-                {scanResult?.metabolic_impact ||
-                  scanResult?.nutrition_reasoning ||
-                  "Add a bowl of curd or 2 boiled eggs / double-dal to your next meal to hit your daily protein velocity."}
+                {scanResult?.reasoning}
               </p>
             </div>
           </div>
@@ -743,7 +777,12 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
         {errorMsg && (
           <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMsg}</span>
+            <span>{scanStatus ? `${scanStatus}: ` : ""}{errorMsg}</span>
+            {selectedImages.length > 0 && (
+              <button type="button" onClick={() => runScan(selectedImages, mimeTypes)} className="ml-auto font-bold underline">
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -760,7 +799,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                     Meal Saved • AI Loop Updated ⚡
                   </h4>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    Added +{Math.round(isEditing ? editCalories : scanResult?.calories || 320)} kcal & +{Math.round(isEditing ? editProtein : scanResult?.protein || 28)}g Protein to your daily state.
+                    Added +{Math.round(isEditing ? editCalories : scanResult?.nutrition.calories ?? 0)} kcal & +{Math.round(isEditing ? editProtein : scanResult?.nutrition.protein ?? 0)}g Protein to your daily state.
                   </p>
                 </div>
               </div>
@@ -774,7 +813,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
                 Next Best Step For Today:
               </span>
               <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">
-                {scanResult?.metabolic_impact || scanResult?.nutrition_reasoning || "Balanced meal recorded. Next: pace your afternoon hydration and prepare for your evening protein target."}
+                {scanResult?.reasoning}
               </p>
             </div>
 
@@ -840,7 +879,7 @@ export const FoodScanner: React.FC<FoodScannerProps> = ({
 
             <button
               onClick={handleSaveToTracker}
-              disabled={saving || savedSuccess}
+              disabled={saving || savedSuccess || scanStatus !== "AI_SUCCESS"}
               className="py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-extrabold transition shadow-lg shadow-slate-900/10 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               {saving ? (

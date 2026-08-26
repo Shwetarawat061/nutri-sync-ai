@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { User, Mail, Sparkles, Scale, Ruler, Activity, ArrowRight, ArrowLeft, Target, Zap, DollarSign } from "lucide-react";
 import { motion } from "motion/react";
 import { NutriSyncLogo } from "./brand/NutriSyncLogo";
@@ -13,21 +13,36 @@ interface OnboardingProps {
 }
 
 export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, onBack }) => {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    age: 21 as number | string,
-    weight: 68 as number | string,
-    height: 172 as number | string,
-    gender: "male",
-    activityLevel: "moderate" as keyof typeof ACTIVITY_MULTIPLIERS,
-    goal: "Healthy eating",
-    dietary_pref: "Vegetarian",
-    budget: "medium",
-    hostel_context: "Hostel mess & canteen food",
+  const [formData, setFormData] = useState(() => {
+    const savedDraft = localStorage.getItem("nutrisync_onboarding_draft");
+    if (savedDraft) {
+      try {
+        return JSON.parse(savedDraft);
+      } catch {
+        localStorage.removeItem("nutrisync_onboarding_draft");
+      }
+    }
+
+    return {
+      name: "",
+      email: "",
+      age: 21 as number | string,
+      weight: 68 as number | string,
+      height: 172 as number | string,
+      gender: "male",
+      activityLevel: "moderate" as keyof typeof ACTIVITY_MULTIPLIERS,
+      goal: "Healthy eating",
+      dietary_pref: "Vegetarian",
+      budget: "medium",
+      hostel_context: "Hostel mess & canteen food",
+    };
   });
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("nutrisync_onboarding_draft", JSON.stringify(formData));
+  }, [formData]);
 
   const numWeight = Number(formData.weight) || 0;
   const numHeight = Number(formData.height) || 0;
@@ -101,6 +116,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete, setToast, on
 
       const saved = await api.onboardUser(profileToSave);
       localStorage.setItem("user_email", formData.email.trim());
+      localStorage.removeItem("nutrisync_onboarding_draft");
       onComplete(saved);
       if (setToast) {
         setToast({ message: "Metabolic Profile Configured", type: "success" });

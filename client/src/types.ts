@@ -58,22 +58,33 @@ export interface MealItem {
   nutrition_reasoning?: string;
   meal_type: "Breakfast" | "Lunch" | "Dinner" | "Snack" | string;
   image_data?: string;
+  image_url?: string;
+  image_urls?: string[];
+  foods?: Array<{ name: string; portion?: string }>;
+  nutrition?: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
+  ai_metadata?: { source?: string; model?: string; confidence?: number; warnings?: string[] };
   created_at: string;
 }
 
 export interface FoodScanResponse {
-  food_name: string;
-  estimated_weight_g?: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fats: number;
-  fiber: number;
-  glycemic_index: "Low" | "Medium" | "High";
-  metabolic_impact: string;
-  nutrition_reasoning: string;
-  confidence?: "low" | "medium" | "high";
-  health_rating: number;
+  success: true;
+  source: "gemini";
+  model: string;
+  mealName: string;
+  foods: Array<{ name: string; portion?: string }>;
+  nutrition: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
+  confidence: number;
+  reasoning: string;
+  warnings: string[];
+  estimatedWeightG?: number;
+  imageUrls?: string[];
+}
+
+export interface FoodScanFailure {
+  success: false;
+  source: "gemini";
+  errorCode: "AI_UNAVAILABLE" | "AI_INVALID_RESULT" | "IMAGE_INVALID" | "LOW_CONFIDENCE" | "DAILY_LIMIT_REACHED" | "IMAGE_STORAGE_UNAVAILABLE";
+  message: string;
 }
 
 export interface NextBestActionData {

@@ -2,6 +2,7 @@ export interface UserRow {
   id: number;
   name: string;
   email: string;
+  password_hash?: string;
   age: number;
   weight: number;
   height: number;
@@ -27,6 +28,7 @@ export interface UserRow {
   email_deficit_alerts?: number;
   email_hostel_hacks?: number;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface MealRow {

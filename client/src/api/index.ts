@@ -2,6 +2,7 @@ import {
   UserProfile,
   MealItem,
   FoodScanResponse,
+  FoodScanFailure,
   NextBestActionData,
   NutritionInsightData,
   MealRecommendationData,
@@ -9,7 +10,10 @@ import {
 } from "../types";
 
 async function safeFetch<T = any>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const token = localStorage.getItem("nutrisync_auth_token");
+  const headers = new Headers(init?.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(url, { ...init, headers });
   const contentType = res.headers.get("content-type") || "";
 
   let body: any = null;
@@ -30,13 +34,43 @@ async function safeFetch<T = any>(url: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const errorMsg = body?.error || body?.details || body?.message || `Request failed with status ${res.status}`;
-    throw new Error(errorMsg);
+    throw Object.assign(new Error(errorMsg), { errorCode: body?.errorCode });
   }
 
   return body;
 }
 
 export const api = {
+  async register(payload: { name: string; email: string; password: string }): Promise<{ user: UserProfile; token: string }> {
+    return safeFetch<{ user: UserProfile; token: string }>("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async login(payload: { email: string; password: string }): Promise<{ user: UserProfile; token: string }> {
+    return safeFetch<{ user: UserProfile; token: string }>("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getCurrentUser(): Promise<UserProfile> {
+    const data = await safeFetch<{ user: UserProfile }>("/api/auth/me");
+    return data.user;
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await safeFetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      localStorage.removeItem("nutrisync_auth_token");
+      localStorage.removeItem("user_email");
+    }
+  },
+
   // User Profile Endpoints
   async onboardUser(profile: Partial<UserProfile>): Promise<UserProfile> {
     const data = await safeFetch<{ user: UserProfile }>("/api/user/onboard", {
@@ -74,18 +108,22 @@ export const api = {
   },
 
   async getUserProfile(email: string): Promise<UserProfile | null> {
-    try {
-      const res = await fetch(`/api/user/profile?email=${encodeURIComponent(email)}`);
-      if (res.status === 404) return null;
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const data = await res.json();
-        return data.user || null;
-      }
-      return null;
-    } catch {
-      return null;
+    const res = await fetch(`/api/user/profile?email=${encodeURIComponent(email)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new Error(`Profile lookup failed with status ${res.status}`);
     }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Profile lookup returned an invalid response");
+    }
+
+    const data = await res.json();
+    if (!data.user) {
+      throw new Error("Profile lookup returned no account data");
+    }
+    return data.user;
   },
 
   async saveEmailPreferences(payload: {
@@ -163,17 +201,18 @@ export const api = {
 
   // AI Endpoints
   async scanFood(
-    imageBase64: string,
-    mimeType: string,
+    imageBase64: string | string[],
+    mimeType: string | string[],
     userGoal?: string,
     userTargets?: { calories: number; protein: number; carbs: number; fats: number }
   ): Promise<FoodScanResponse> {
-    const data = await safeFetch<{ scan?: FoodScanResponse } & FoodScanResponse>("/api/ai/scan-food", {
+    const data = await safeFetch<FoodScanResponse | FoodScanFailure>("/api/ai/scan-food", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, mimeType, userGoal, userTargets }),
     });
-    return data.scan || data;
+    if (data.success === false) throw Object.assign(new Error(data.message), { errorCode: data.errorCode });
+    return data;
   },
 
   async getNutritionInsight(payload: {
